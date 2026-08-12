@@ -67,8 +67,14 @@ DEMO_VIDEOS = [
     ("Comparatif de cartes graphiques", "tech", 1280, 720, 11, "rgbtestsrc"),
     ("Monter son premier serveur Linux", "tech", 640, 360, 9, "testsrc2"),
     ("Recette du riz gras", "cooking", 1280, 720, 10, "gradients"),
-    # Portrait source: the ladder must scale the short side, not letterbox.
+    # Portrait sources: the ladder must scale the short side, not letterbox —
+    # and these double as the Shorts feed (vertical + under the duration cap).
     ("Street food en vertical", "cooking", 720, 1280, 8, "testsrc2"),
+    ("Une minute a Ouagadougou", "travel", 1080, 1920, 15, "gradients"),
+    ("Astuce Django en 20 secondes", "tech", 720, 1280, 20, "rgbtestsrc"),
+    ("But de la semaine", "sport", 1080, 1920, 12, "smptehdbars"),
+    ("Recette express: le the", "cooking", 720, 1280, 18, "testsrc"),
+    ("Beat maison", "music", 1080, 1920, 10, "testsrc2"),
     ("Route du Sahel - carnet de voyage", "travel", 1920, 1080, 12, "mandelbrot"),
     # Below the bottom rung: must produce exactly one native-size rendition.
     ("Archive 1998 - qualite d'epoque", "travel", 320, 180, 8, "testsrc"),

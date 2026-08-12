@@ -19,6 +19,10 @@ export const usePlayerStore = create()(
 
       setVolume: (volume) => set({ volume, muted: volume === 0 }),
       toggleMuted: () => set((state) => ({ muted: !state.muted })),
+      // Used when the browser forces a player muted (blocked autoplay). Without
+      // it the store would claim "unmuted" over a muted element, and the first
+      // click on the toggle would appear to do nothing.
+      setMuted: (muted) => set({ muted }),
       setPreferredLevel: (preferredLevel) => set({ preferredLevel }),
       setAutoplay: (autoplay) => set({ autoplay }),
     }),

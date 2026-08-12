@@ -13,6 +13,7 @@ const BrowsePage = lazy(() => import('@/features/videos/BrowsePage'))
 const WatchPage = lazy(() => import('@/features/videos/WatchPage'))
 const SearchPage = lazy(() => import('@/features/search/SearchPage'))
 const ChannelPage = lazy(() => import('@/features/channel/ChannelPage'))
+const ShortsPage = lazy(() => import('@/features/shorts/ShortsPage'))
 const LivePage = lazy(() => import('@/features/live/LivePage'))
 const LiveWatchPage = lazy(() => import('@/features/live/LiveWatchPage'))
 const StudioLivePage = lazy(() => import('@/features/live/StudioLivePage'))
@@ -108,6 +109,8 @@ export default function AppRoutes() {
             <Route path="watch/:videoId" element={<WatchPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="c/:username" element={<ChannelPage />} />
+            <Route path="shorts" element={<ShortsPage />} />
+            <Route path="shorts/:videoId" element={<ShortsPage />} />
             <Route path="live" element={<LivePage />} />
             <Route path="live/:slug" element={<LiveWatchPage />} />
             <Route path="premium" element={<PlansPage />} />

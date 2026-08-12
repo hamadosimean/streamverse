@@ -281,6 +281,19 @@ ADS_ENABLED = env.bool("ADS_ENABLED", default=True)
 # Mid-roll on a 20-second clip is user-hostile.
 ADS_MIN_DURATION_FOR_MIDROLL = env.int("ADS_MIN_DURATION_FOR_MIDROLL", default=120)
 
+# --------------------------------------------------------------------------
+# Shorts
+#
+# A video becomes a Short automatically when it is BOTH short enough and
+# vertical enough. Derived at transcode time from ffprobe output, never set by
+# the uploader — otherwise any video could declare itself a Short to get into
+# the full-screen feed.
+# --------------------------------------------------------------------------
+SHORTS_MAX_DURATION_SECONDS = env.int("SHORTS_MAX_DURATION_SECONDS", default=90)
+# Width / height. 1.0 admits square; anything wider is landscape and would be
+# letterboxed in a portrait viewport.
+SHORTS_MAX_ASPECT_RATIO = env.float("SHORTS_MAX_ASPECT_RATIO", default=1.0)
+
 FFMPEG_BIN = env("FFMPEG_BIN", default="ffmpeg")
 FFPROBE_BIN = env("FFPROBE_BIN", default="ffprobe")
 HLS_SEGMENT_SECONDS = env.int("HLS_SEGMENT_SECONDS", default=4)

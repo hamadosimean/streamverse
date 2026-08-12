@@ -6,6 +6,7 @@ from apps.videos.tus import (
     TusUploadView,
     UploadSessionResultView,
 )
+from apps.videos.shorts import ShortDetailView, ShortsFeedView
 from apps.videos.views import (
     HlsMasterView,
     HlsVariantView,
@@ -28,6 +29,10 @@ urlpatterns = [
     path("uploads/<uuid:upload_id>/", TusUploadView.as_view(), name="tus-upload"),
     path("uploads/<uuid:upload_id>/video/", UploadSessionResultView.as_view(),
          name="upload-result"),
+
+    # Shorts — same videos, different surface.
+    path("shorts/", ShortsFeedView.as_view(), name="shorts-feed"),
+    path("shorts/<uuid:video_id>/", ShortDetailView.as_view(), name="short-detail"),
 
     # Public catalogue
     path("feed/", HomeFeedView.as_view(), name="home-feed"),

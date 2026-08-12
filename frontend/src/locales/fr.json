@@ -21,7 +21,17 @@
     "moderation": "Moderation",
     "dashboard": "Tableau de bord",
     "library": "Bibliotheque",
-    "subscriptions": "Abonnements"
+    "subscriptions": "Abonnements",
+    "shorts": "Shorts",
+    "sections": {
+      "discover": "Decouvrir",
+      "you": "Ma bibliotheque",
+      "manage": "Administration"
+    },
+    "clearSearch": "Effacer la recherche",
+    "submitSearch": "Lancer la recherche",
+    "searchHint": "Appuyez sur / pour rechercher",
+    "signedOutHint": "Connectez-vous pour retrouver vos abonnements, votre historique et vos videos enregistrees."
   },
   "common": {
     "loading": "Chargement...",
@@ -247,7 +257,9 @@
     "passwordChanged": "Mot de passe mis a jour.",
     "profileSaved": "Profil enregistre.",
     "role": "Role",
-    "memberSince": "Membre depuis {{date}}"
+    "memberSince": "Membre depuis {{date}}",
+    "session": "Session",
+    "sessionHint": "La deconnexion efface les jetons de cette session sur cet appareil uniquement. Vos autres appareils restent connectes."
   },
   "validation": {
     "required": "Ce champ est obligatoire.",
@@ -613,5 +625,24 @@
     "subscriptionsSubtitle": "Les dernieres videos des chaines que vous suivez.",
     "manageFollowing": "Gerer ({{count}})",
     "feedNote": "Fil strictement chronologique: les videos les plus recentes des chaines que vous suivez. Aucun classement algorithmique."
+  },
+  "shorts": {
+    "title": "Shorts",
+    "sort": "Trier",
+    "sortBy": {
+      "recent": "Plus recents",
+      "popular": "Plus vues",
+      "liked": "Plus aimees",
+      "oldest": "Plus anciennes"
+    },
+    "empty": "Aucun short pour le moment",
+    "emptyHint": "Televersez une video verticale de moins de 90 secondes: elle apparaitra ici automatiquement.",
+    "previous": "Short precedent",
+    "next": "Short suivant",
+    "openComments": "Commentaires",
+    "openFullPage": "Ouvrir la page complete",
+    "seeAll": "Voir tout",
+    "rankingNote": "Fil chronologique (ou trie explicitement). Aucun classement algorithmique optimise pour l'engagement.",
+    "isShort": "Cette video est un Short: format vertical de moins de 90 secondes."
   }
 }

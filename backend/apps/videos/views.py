@@ -31,6 +31,7 @@ from rest_framework.views import APIView
 from apps.audit import services as audit
 from apps.audit.models import AuditAction
 from apps.core.permissions import IsOwner
+from apps.core.sorting import SortableMixin, SortOption
 from apps.videos.filters import VideoFilter
 from apps.videos.models import Video, VideoStatus, Visibility
 from apps.videos.serializers import (
@@ -83,7 +84,13 @@ class VideoListView(ListAPIView):
     def get_queryset(self):
         sort = self.request.query_params.get("sort", "recent")
         ordering = self.ORDERINGS.get(sort, self.ORDERINGS["recent"])
-        return Video.objects.publicly_listed().with_related().order_by(*ordering)
+        # Shorts are excluded: they have their own full-screen surface, and a
+        # 15-second vertical clip in a grid of landscape thumbnails looks broken.
+        # `?include_shorts=true` opts back in for anything that wants everything.
+        queryset = (Video.objects.publicly_listed()
+                    if self.request.query_params.get("include_shorts") == "true"
+                    else Video.objects.long_form())
+        return queryset.with_related().order_by(*ordering)
 
 
 @extend_schema(tags=["videos"])
@@ -99,12 +106,18 @@ class HomeFeedView(APIView):
 
     @extend_schema(responses={200: VideoCardSerializer(many=True)})
     def get(self, request):
-        base = Video.objects.publicly_listed().with_related()
+        base = Video.objects.long_form().with_related()
         context = {"request": request}
         since = timezone.now() - timedelta(days=30)
 
         return Response(
             {
+                # A small rail on the homepage; the full-screen feed is /shorts.
+                "shorts": VideoCardSerializer(
+                    Video.objects.shorts().with_related()
+                        .order_by("-published_at")[:12],
+                    many=True, context=context,
+                ).data,
                 "recent": VideoCardSerializer(
                     base.order_by("-published_at")[:12], many=True, context=context
                 ).data,
@@ -239,13 +252,27 @@ class HlsVariantView(_SignedManifestView):
 # Studio (the uploader's own videos)
 # --------------------------------------------------------------------------
 @extend_schema(tags=["studio"])
-class StudioVideoViewSet(viewsets.ModelViewSet):
+class StudioVideoViewSet(SortableMixin, viewsets.ModelViewSet):
     """CRUD over *your own* uploads. Creation happens through the tus endpoint,
     so POST is not exposed here."""
 
     permission_classes = [IsAuthenticated, IsOwner]
     owner_field = "uploader"
     http_method_names = ["get", "patch", "delete", "post", "head", "options"]
+
+    sort_options = {
+        "recent": SortOption("recent", ("-uploaded_at", "-id")),
+        "oldest": SortOption("oldest", ("uploaded_at", "id")),
+        "views": SortOption("views", ("-view_count", "-uploaded_at")),
+        "likes": SortOption("likes", ("-like_count", "-uploaded_at")),
+        "comments": SortOption("comments", ("-comment_count", "-uploaded_at")),
+        "title": SortOption("title", ("title", "id")),
+        "longest": SortOption("longest", ("-duration_seconds", "-id")),
+        # Groups failed/processing together — what you want when chasing a
+        # stuck upload rather than browsing.
+        "status": SortOption("status", ("status", "-uploaded_at")),
+    }
+    default_sort = "recent"
 
     def get_queryset(self):
         # Schema generation instantiates the view with an AnonymousUser; without
@@ -255,11 +282,10 @@ class StudioVideoViewSet(viewsets.ModelViewSet):
             return Video.objects.none()
         # Scoped at the database level — the object permission is a second line
         # of defence, not the only one.
-        return (
+        return self.apply_sort(
             Video.objects.filter(uploader=self.request.user)
             .with_related()
             .prefetch_related("renditions")
-            .order_by("-uploaded_at")
         )
 
     def get_serializer_class(self):

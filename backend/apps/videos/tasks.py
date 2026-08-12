@@ -94,6 +94,11 @@ def probe_source(video_id: str) -> str:
         original_key=original_key,
     )
     video.refresh_from_db()
+
+    # Classified here, immediately after probing: this is the first moment the
+    # real duration and dimensions are known, and both are needed.
+    Video.objects.filter(pk=video.pk).update(is_short=video.qualifies_as_short())
+    video.refresh_from_db()
     progress.publish(
         video, ProcessingStage.PROBING, 1.0,
         f"{result.resolution} - {int(result.duration_seconds)} s",

@@ -1,4 +1,4 @@
-import { ArrowRight, Clock, Film, Flame, TrendingUp } from 'lucide-react'
+import { ArrowRight, Clapperboard, Clock, Film, Flame, TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
@@ -24,7 +24,8 @@ export default function HomePage() {
   const { data, isLoading, isError, error, refetch } = useHomeFeed()
 
   const isEmpty =
-    data && !data.recent?.length && !data.trending?.length && !data.most_viewed?.length
+    data && !data.recent?.length && !data.trending?.length &&
+    !data.most_viewed?.length && !data.shorts?.length
 
   return (
     <div>
@@ -63,6 +64,36 @@ export default function HomePage() {
             </Link>
           }
         />
+      )}
+
+      {data?.shorts?.length > 0 && (
+        <section className="mb-10">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+            <Clapperboard className="size-5 text-brand-400" aria-hidden />
+            {t('nav.shorts')}
+            <Link to="/shorts" className="ml-auto text-xs font-normal text-brand-300 hover:underline">
+              {t('shorts.seeAll')}
+            </Link>
+          </h2>
+          {/* Portrait thumbnails in their own rail — a vertical clip cropped
+              into a 16:9 grid cell shows a sliver of the frame. */}
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {data.shorts.map((short) => (
+              <Link key={short.id} to={`/shorts/${short.id}`}
+                    className="group w-[150px] shrink-0">
+                <div className="aspect-[9/16] w-full overflow-hidden rounded-card bg-ink-800">
+                  {short.poster_url && (
+                    <img src={short.poster_url} alt="" loading="lazy"
+                         className="size-full object-cover transition group-hover:scale-105" />
+                  )}
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs font-medium group-hover:text-brand-300">
+                  {short.title}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       {data && !isEmpty && (

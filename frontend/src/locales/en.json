@@ -21,7 +21,17 @@
     "moderation": "Moderation",
     "dashboard": "Dashboard",
     "library": "Library",
-    "subscriptions": "Subscriptions"
+    "subscriptions": "Subscriptions",
+    "shorts": "Shorts",
+    "sections": {
+      "discover": "Discover",
+      "you": "Your library",
+      "manage": "Administration"
+    },
+    "clearSearch": "Clear search",
+    "submitSearch": "Run search",
+    "searchHint": "Press / to search",
+    "signedOutHint": "Sign in to find your subscriptions, watch history and saved videos."
   },
   "common": {
     "loading": "Loading...",
@@ -247,7 +257,9 @@
     "passwordChanged": "Password updated.",
     "profileSaved": "Profile saved.",
     "role": "Role",
-    "memberSince": "Member since {{date}}"
+    "memberSince": "Member since {{date}}",
+    "session": "Session",
+    "sessionHint": "Signing out clears this session’s tokens on this device only. Your other devices stay signed in."
   },
   "validation": {
     "required": "This field is required.",
@@ -613,5 +625,24 @@
     "subscriptionsSubtitle": "The latest from the channels you follow.",
     "manageFollowing": "Manage ({{count}})",
     "feedNote": "Strictly chronological: the newest videos from the channels you follow. No algorithmic ranking."
+  },
+  "shorts": {
+    "title": "Shorts",
+    "sort": "Sort",
+    "sortBy": {
+      "recent": "Newest",
+      "popular": "Most viewed",
+      "liked": "Most liked",
+      "oldest": "Oldest"
+    },
+    "empty": "No shorts yet",
+    "emptyHint": "Upload a vertical video under 90 seconds and it appears here automatically.",
+    "previous": "Previous short",
+    "next": "Next short",
+    "openComments": "Comments",
+    "openFullPage": "Open full page",
+    "seeAll": "See all",
+    "rankingNote": "Chronological (or explicitly sorted). No engagement-optimised algorithmic ranking.",
+    "isShort": "This video is a Short: vertical format, under 90 seconds."
   }
 }

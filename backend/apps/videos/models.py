@@ -67,6 +67,18 @@ class VideoQuerySet(models.QuerySet):
         return self.filter(status=VideoStatus.READY, visibility=Visibility.PUBLIC,
                            uploader__is_suspended=False)
 
+    def shorts(self):
+        return self.publicly_listed().filter(is_short=True)
+
+    def long_form(self):
+        """The main catalogue, with Shorts held back.
+
+        Shorts have their own full-screen surface; mixing a 15-second vertical
+        clip into a grid of landscape thumbnails makes both look wrong, and it
+        lets a flood of cheap short uploads bury everything else.
+        """
+        return self.publicly_listed().filter(is_short=False)
+
     def visible_to(self, user):
         """Rows a given viewer is allowed to *fetch by id*.
 
@@ -171,6 +183,15 @@ class Video(UUIDPrimaryKeyModel, TimeStampedModel):
     uploaded_at = models.DateTimeField(default=timezone.now, db_index=True)
     published_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
+    # -- Shorts -------------------------------------------------------------
+    is_short = models.BooleanField(
+        default=False, db_index=True,
+        help_text=_("Format court vertical. Derive automatiquement de la duree "
+                    "et du ratio de la source au moment du transcodage — jamais "
+                    "saisi a la main, pour qu'une video ne puisse pas se declarer "
+                    "short et court-circuiter le fil principal."),
+    )
+
     # -- Full-text search ---------------------------------------------------
     search_vector = SearchVectorField(
         null=True, blank=True, editable=False,
@@ -191,6 +212,9 @@ class Video(UUIDPrimaryKeyModel, TimeStampedModel):
             # Without this, every search degrades to a sequential scan over the
             # whole catalogue.
             GinIndex(fields=["search_vector"], name="video_search_vector_gin"),
+            # The Shorts feed filters on this every request.
+            models.Index(fields=["is_short", "status", "visibility", "-published_at"],
+                         name="video_shorts_feed_idx"),
         ]
 
     def __str__(self):
@@ -219,6 +243,31 @@ class Video(UUIDPrimaryKeyModel, TimeStampedModel):
     @property
     def is_playable(self) -> bool:
         return self.status == VideoStatus.READY and bool(self.hls_master_path)
+
+    @property
+    def aspect_ratio(self) -> float:
+        """Width / height. 0 when the source was never probed."""
+        return (self.source_width / self.source_height) if self.source_height else 0.0
+
+    @property
+    def is_portrait(self) -> bool:
+        return bool(self.source_height and self.source_height > self.source_width)
+
+    def qualifies_as_short(self) -> bool:
+        """Both conditions, not either.
+
+        A 20-second landscape clip is a short *video*, not a Short: the format is
+        defined by the vertical frame as much as the length, and putting
+        letterboxed 16:9 content into a full-screen portrait feed looks broken.
+        Square is allowed — phones produce it and it fills the frame acceptably.
+        """
+        from django.conf import settings
+
+        if not self.duration_seconds or not self.source_height:
+            return False
+        if self.duration_seconds > settings.SHORTS_MAX_DURATION_SECONDS:
+            return False
+        return self.aspect_ratio <= settings.SHORTS_MAX_ASPECT_RATIO
 
     def mark_failed(self, reason: str) -> None:
         self.status = VideoStatus.FAILED
