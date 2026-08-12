@@ -1,0 +1,21 @@
+{% extends "seo/_base_preview.html" %}
+{% block page_title %}{{ video.title }} — {{ site_name }}{% endblock %}
+{% block og %}
+<meta property="og:type" content="video.other">
+<meta property="og:title" content="{{ video.title }}">
+{% if poster %}<meta property="og:image" content="{{ poster }}">
+<meta property="og:image:alt" content="{{ video.title }}">{% endif %}
+{% if video.source_width %}<meta property="og:video:width" content="{{ video.source_width }}">
+<meta property="og:video:height" content="{{ video.source_height }}">{% endif %}
+<meta property="og:video:duration" content="{{ video.duration_seconds }}">
+<meta property="video:duration" content="{{ video.duration_seconds }}">
+{% if video.published_at %}<meta property="video:release_date" content="{{ video.published_at|date:'c' }}">{% endif %}
+<meta name="twitter:card" content="{% if poster %}summary_large_image{% else %}summary{% endif %}">
+<meta name="twitter:title" content="{{ video.title }}">
+<meta name="twitter:description" content="{{ description }}">
+{% if poster %}<meta name="twitter:image" content="{{ poster }}">{% endif %}
+{% endblock %}
+{% block jsonld %}
+{{ jsonld }}
+{% endblock %}
+{% block body_link %}{{ video.title }}{% endblock %}

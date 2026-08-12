@@ -15,6 +15,7 @@ import { useRelatedVideos } from '@/features/engagement/api'
 import AdOverlay from '@/features/monetization/AdOverlay'
 import { useAdBreaks } from '@/hooks/useAdBreaks'
 import { useViewTracking } from '@/hooks/useViewTracking'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { usePlayback, useVideo } from '@/features/videos/api'
 
 function RelatedRail({ videoId }) {
@@ -72,6 +73,35 @@ export default function WatchPage() {
   // it returned.
   const adBreaks = useAdBreaks(videoId, {
     enabled: videoQuery.data?.status === 'ready',
+  })
+
+  // Called before the early returns below, because hook order has to be stable
+  // across renders -- on the loading pass `video` is simply undefined and the
+  // hook falls back to the site defaults.
+  const metaVideo = videoQuery.data
+  useDocumentMeta({
+    title: metaVideo?.title,
+    description: metaVideo?.description?.slice(0, 300),
+    image: metaVideo?.poster_url,
+    type: 'video.other',
+    // Unlisted means reachable by link but not listed; indexing it would
+    // undo exactly that.
+    noindex: metaVideo ? metaVideo.visibility !== 'public' : true,
+    jsonLd: metaVideo && {
+      '@context': 'https://schema.org',
+      '@type': 'VideoObject',
+      name: metaVideo.title,
+      description: metaVideo.description || metaVideo.title,
+      uploadDate: metaVideo.published_at,
+      duration: `PT${metaVideo.duration_seconds}S`,
+      thumbnailUrl: metaVideo.poster_url ? [metaVideo.poster_url] : undefined,
+      url: `${window.location.origin}/watch/${metaVideo.id}`,
+      author: {
+        '@type': 'Person',
+        name: metaVideo.uploader?.display_name || metaVideo.uploader?.username,
+        url: `${window.location.origin}/c/${metaVideo.uploader?.username}`,
+      },
+    },
   })
 
   if (videoQuery.isLoading) return <LoadingBlock label={t('watch.loading')} />

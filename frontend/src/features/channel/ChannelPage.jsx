@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn'
 import { formatAbsolute, formatCount, formatDuration } from '@/lib/format'
 import { FollowButton } from '@/features/library/controls'
 import { useChannel, useChannelVideos } from '@/features/engagement/api'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 
 const SORTS = [
   { value: 'recent', labelKey: 'browse.sortRecent' },
@@ -33,6 +34,25 @@ export default function ChannelPage() {
 
   const channelQuery = useChannel(username)
   const videosQuery = useChannelVideos(username, sort)
+
+  const metaChannel = channelQuery.data
+  useDocumentMeta({
+    title: metaChannel?.display_name || metaChannel?.username || username,
+    description: metaChannel?.bio,
+    type: 'profile',
+    canonical: `${window.location.origin}/c/${username}`,
+    jsonLd: metaChannel && {
+      '@context': 'https://schema.org',
+      '@type': 'ProfilePage',
+      url: `${window.location.origin}/c/${metaChannel.username}`,
+      mainEntity: {
+        '@type': 'Person',
+        name: metaChannel.display_name || metaChannel.username,
+        alternateName: metaChannel.username,
+        description: metaChannel.bio || undefined,
+      },
+    },
+  })
 
   if (channelQuery.isLoading) return <LoadingBlock />
   if (channelQuery.isError) {

@@ -1,0 +1,25 @@
+{% comment %}
+Minimal document for link-unfurling crawlers. Humans hitting this URL are
+redirected to the SPA by the meta refresh + the visible link, so a mis-routed
+real browser is never stranded on a bare page.
+{% endcomment %}<!doctype html>
+<html lang="{{ language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block page_title %}{{ site_name }}{% endblock %}</title>
+<link rel="canonical" href="{{ canonical }}">
+{% if noindex %}<meta name="robots" content="noindex, nofollow">
+{% else %}<meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1">{% endif %}
+<meta name="description" content="{{ description }}">
+<meta property="og:site_name" content="{{ site_name }}">
+<meta property="og:url" content="{{ canonical }}">
+<meta property="og:description" content="{{ description }}">
+{% block og %}{% endblock %}
+{% block jsonld %}{% endblock %}
+<meta http-equiv="refresh" content="0; url={{ canonical }}">
+</head>
+<body>
+<p><a href="{{ canonical }}">{% block body_link %}{{ site_name }}{% endblock %}</a></p>
+</body>
+</html>

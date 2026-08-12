@@ -1,5 +1,7 @@
 import { Info, SearchX, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { useSearchParams } from 'react-router-dom'
 
 import { VideoGrid } from '@/components/VideoCard'
@@ -11,6 +13,11 @@ import { useCategories } from '@/features/videos/api'
 
 export default function SearchPage() {
   const { t } = useTranslation()
+  // noindex: one indexable page per query string is unbounded crawl space with
+  // no content of its own. robots.txt disallows /search too; this covers a
+  // crawler that reaches the page from a link anyway.
+  useDocumentMeta({ title: t('seo.searchTitle'), noindex: true })
+
   const [searchParams, setSearchParams] = useSearchParams()
 
   const query = searchParams.get('q') || ''

@@ -17,6 +17,15 @@ x-backend-env: &backend-env
   FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8110}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
+  # Public identity for sitemap.xml, robots.txt and Open Graph tags, which must
+  # emit absolute URLs and have no request to derive them from.
+  SITE_URL: ${SITE_URL:-http://localhost:8110}
+  SITE_NAME: ${SITE_NAME:-StreamVerse}
+  SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-0}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
+  CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-0}
+
   POSTGRES_DB: ${POSTGRES_DB:-streamverse}
   POSTGRES_USER: ${POSTGRES_USER:-streamverse}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-streamverse}
@@ -248,8 +257,14 @@ services:
   nginx:
     image: nginx:1.30-trixie
     restart: unless-stopped
+    environment:
+      # The image runs envsubst over /etc/nginx/templates/*.template at start.
+      # The FILTER is essential: without it envsubst would also eat nginx's own
+      # $host, $request_uri and friends, leaving an empty config.
+      MINIO_PUBLIC_ENDPOINT: "${MINIO_PUBLIC_ENDPOINT:-http://localhost:9010}"
+      NGINX_ENVSUBST_FILTER: "^MINIO_PUBLIC_ENDPOINT$$"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
       - static:/var/www/static:ro
     ports:
       - "${APP_HOST_PORT:-8110}:80"

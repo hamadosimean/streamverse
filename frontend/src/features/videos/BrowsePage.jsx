@@ -1,6 +1,8 @@
 import { Info, SearchX } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { useSearchParams } from 'react-router-dom'
 
 import { VideoGrid } from '@/components/VideoCard'
@@ -18,6 +20,8 @@ const SORTS = [
 
 export default function BrowsePage() {
   const { t } = useTranslation()
+  useDocumentMeta({ title: t('nav.browse'), description: t('seo.browse') })
+
   const [searchParams, setSearchParams] = useSearchParams()
 
   const query = searchParams.get('q') || ''

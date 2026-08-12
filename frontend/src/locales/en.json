@@ -644,5 +644,13 @@
     "seeAll": "See all",
     "rankingNote": "Chronological (or explicitly sorted). No engagement-optimised algorithmic ranking.",
     "isShort": "This video is a Short: vertical format, under 90 seconds."
+  },
+  "seo": {
+    "home": "Upload your videos, follow the channels you like, and watch Shorts and live streams on StreamVerse.",
+    "browse": "Browse the StreamVerse catalogue by category, duration and popularity.",
+    "live": "Streams broadcasting right now on StreamVerse.",
+    "premium": "Go Premium: ad-free playback and top quality.",
+    "shorts": "Short vertical videos, full screen, on StreamVerse.",
+    "searchTitle": "Search"
   }
 }

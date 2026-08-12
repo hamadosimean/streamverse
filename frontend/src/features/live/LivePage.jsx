@@ -1,5 +1,7 @@
 import { Eye, Radio, RadioTower } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { Link } from 'react-router-dom'
 
 import { Badge, Button, EmptyState, ErrorState, SkeletonGrid } from '@/components/ui'
@@ -54,6 +56,8 @@ function LiveCard({ channel }) {
 
 export default function LivePage() {
   const { t } = useTranslation()
+  useDocumentMeta({ title: t('nav.live'), description: t('seo.live') })
+
   const user = useAuthStore((state) => state.user)
   const { data, isLoading, isError, error, refetch } = useLiveChannels()
 

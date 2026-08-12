@@ -1,5 +1,7 @@
 import { ArrowRight, Clapperboard, Clock, Film, Flame, TrendingUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { Link } from 'react-router-dom'
 
 import { VideoGrid } from '@/components/VideoCard'
@@ -21,6 +23,29 @@ function Section({ icon: Icon, title, videos }) {
 
 export default function HomePage() {
   const { t } = useTranslation()
+  useDocumentMeta({
+    title: null, // the site name alone is the right title for the root page
+    description: t('seo.home'),
+    canonical: `${window.location.origin}/`,
+    // WebSite + SearchAction is what can earn a sitelinks search box. It is
+    // emitted here rather than in index.html because a valid @id has to be an
+    // absolute URL, and the origin is not known at build time.
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'StreamVerse',
+      url: `${window.location.origin}/`,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${window.location.origin}/search?q={search_term_string}`,
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  })
+
   const { data, isLoading, isError, error, refetch } = useHomeFeed()
 
   const isEmpty =

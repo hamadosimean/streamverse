@@ -1,0 +1,14 @@
+{% extends "seo/_base_preview.html" %}
+{% block page_title %}{{ channel.display_name|default:channel.username }} — {{ site_name }}{% endblock %}
+{% block og %}
+<meta property="og:type" content="profile">
+<meta property="og:title" content="{{ channel.display_name|default:channel.username }}">
+<meta property="profile:username" content="{{ channel.username }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ channel.display_name|default:channel.username }}">
+<meta name="twitter:description" content="{{ description }}">
+{% endblock %}
+{% block jsonld %}
+{{ jsonld }}
+{% endblock %}
+{% block body_link %}{{ channel.display_name|default:channel.username }}{% endblock %}

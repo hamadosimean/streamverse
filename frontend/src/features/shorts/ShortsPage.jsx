@@ -8,6 +8,7 @@ import ShortPlayer from '@/features/shorts/ShortPlayer'
 import { Button, EmptyState, ErrorState, LoadingBlock } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { useShortsFeed } from '@/features/shorts/api'
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { useViewTracking } from '@/hooks/useViewTracking'
 
 // How many clips either side of the current one get a live player.
@@ -16,6 +17,7 @@ const MOUNT_WINDOW = 1
 export default function ShortsPage() {
   const { t } = useTranslation()
   const { videoId } = useParams()
+  useDocumentMeta({ title: t('shorts.title'), description: t('seo.shorts') })
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const sort = searchParams.get('sort') || 'recent'

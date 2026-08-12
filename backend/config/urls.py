@@ -33,6 +33,8 @@ api_patterns = [
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(api_patterns)),
+    # robots.txt, sitemap.xml and the crawler link-preview renderers.
+    path("", include("apps.seo.urls")),
 ]
 
 if settings.DEBUG:

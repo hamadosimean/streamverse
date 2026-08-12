@@ -1,6 +1,8 @@
 import { AlertTriangle, Check, CreditCard, Crown, Smartphone } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 
@@ -18,6 +20,8 @@ import { useAuthStore } from '@/stores/useAuthStore'
 
 export default function PlansPage() {
   const { t, i18n } = useTranslation()
+  useDocumentMeta({ title: t('nav.premium'), description: t('seo.premium') })
+
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
 
