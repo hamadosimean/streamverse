@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { KeyRound, Link2, UserCircle } from 'lucide-react'
+import { KeyRound, Link2, LogOut, UserCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { z } from 'zod'
 
@@ -179,6 +180,51 @@ function PasswordForm() {
   )
 }
 
+/**
+ * Signing out lives on this page rather than in the header. It is a rare,
+ * one-way action, and a one-click icon next to the avatar is easy to hit by
+ * accident when reaching for the profile link beside it.
+ */
+function SessionCard() {
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { user, logout } = useAuthStore()
+
+  const handleLogout = () => {
+    logout()
+    toast.success(t('auth.loggedOut'))
+    navigate('/')
+  }
+
+  return (
+    <section className="sv-card p-5">
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
+        <LogOut className="size-4 text-brand-400" aria-hidden />
+        {t('account.session')}
+      </h2>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
+            {(user?.display_name || user?.username || '?').slice(0, 2).toUpperCase()}
+          </span>
+          <div>
+            <p className="text-sm font-medium">{user?.display_name || user?.username}</p>
+            <p className="text-xs text-ink-400">@{user?.username}</p>
+          </div>
+        </div>
+
+        <Button variant="danger" onClick={handleLogout}>
+          <LogOut className="size-4" />
+          {t('nav.logout')}
+        </Button>
+      </div>
+
+      <p className="mt-3 text-xs text-ink-500">{t('account.sessionHint')}</p>
+    </section>
+  )
+}
+
 export default function AccountPage() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.user)
@@ -198,6 +244,7 @@ export default function AccountPage() {
       <div className="grid gap-5">
         <ProfileForm />
         <PasswordForm />
+        <SessionCard />
       </div>
     </div>
   )

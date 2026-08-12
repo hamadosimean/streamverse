@@ -1,25 +1,10 @@
-import {
-  Compass,
-  Crown,
-  Library,
-  Gavel,
-  Home,
-  LayoutDashboard,
-  LogOut,
-  Megaphone,
-  Menu,
-  Radio,
-  Rss,
-  Search,
-  Upload,
-  User,
-  X,
-} from 'lucide-react'
+import { Menu, Search, Upload, User, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import toast from 'react-hot-toast'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import SearchBar from '@/components/SearchBar'
+import Sidebar from '@/components/Sidebar'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -49,101 +34,37 @@ function LanguageSwitcher() {
   )
 }
 
-function SearchBar({ className }) {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const [query, setQuery] = useState('')
-
-  return (
-    <form
-      className={cn('relative', className)}
-      onSubmit={(event) => {
-        event.preventDefault()
-        const trimmed = query.trim()
-        navigate(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : '/browse')
-      }}
-      role="search"
-    >
-      <Search
-        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400"
-        aria-hidden
-      />
-      <input
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder={t('nav.search')}
-        aria-label={t('nav.search')}
-        className="sv-input pl-9"
-      />
-    </form>
-  )
-}
-
-const NAV_ITEMS = [
-  { to: '/', labelKey: 'nav.home', icon: Home, end: true },
-  { to: '/browse', labelKey: 'nav.browse', icon: Compass },
-  { to: '/live', labelKey: 'nav.live', icon: Radio },
-  { to: '/subscriptions', labelKey: 'nav.subscriptions', icon: Rss, auth: true },
-  { to: '/library', labelKey: 'nav.library', icon: Library, auth: true },
-  { to: '/premium', labelKey: 'nav.premium', icon: Crown },
-  { to: '/upload', labelKey: 'nav.upload', icon: Upload, auth: true },
-  { to: '/studio', labelKey: 'nav.studio', icon: LayoutDashboard, auth: true },
-]
-
-function NavItems({ onNavigate }) {
-  const { t } = useTranslation()
-  const user = useAuthStore((state) => state.user)
-
-  return NAV_ITEMS.filter((item) => !item.auth || user).map(
-    ({ to, labelKey, icon: Icon, end }) => (
-      <NavLink
-        key={to}
-        to={to}
-        end={end}
-        onClick={onNavigate}
-        className={({ isActive }) =>
-          cn(
-            'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition',
-            isActive
-              ? 'bg-brand-500/15 text-brand-300'
-              : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100',
-          )
-        }
-      >
-        <Icon className="size-4" aria-hidden />
-        {t(labelKey)}
-      </NavLink>
-    ),
-  )
-}
-
 export default function Layout() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout } = useAuthStore()
-  const { sidebarOpen, toggleSidebar, closeSidebar } = useUIStore()
+  const user = useAuthStore((state) => state.user)
+  const { sidebarOpen, toggleSidebar, closeSidebar, toggleSidebarCollapsed } =
+    useUIStore()
 
-  // A route change must not leave the mobile drawer covering the new page.
+  // Below sm the search field would leave no room for anything else, so it is
+  // opened on demand as its own row.
+  const [mobileSearch, setMobileSearch] = useState(false)
+
+  // A route change must not leave the drawer covering the new page.
   useEffect(() => {
     closeSidebar()
+    setMobileSearch(false)
   }, [location.pathname, closeSidebar])
-
-  const handleLogout = () => {
-    logout()
-    toast.success(t('auth.loggedOut'))
-    navigate('/')
-  }
 
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b border-ink-800 bg-ink-900/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4">
+        <div className="flex h-16 items-center gap-2 px-3 sm:gap-3 sm:px-4">
+          {/* One button, two jobs: it opens the drawer on mobile and collapses
+              the rail on desktop — the same affordance in the same place. */}
           <button
             type="button"
-            onClick={toggleSidebar}
-            className="rounded-lg p-2 text-ink-300 transition hover:bg-ink-800 md:hidden"
+            onClick={() => {
+              if (window.matchMedia('(min-width: 768px)').matches) toggleSidebarCollapsed()
+              else toggleSidebar()
+            }}
+            className="shrink-0 rounded-lg p-2 text-ink-300 transition hover:bg-ink-800"
             aria-label={t('nav.menu')}
             aria-expanded={sidebarOpen}
           >
@@ -161,36 +82,46 @@ export default function Layout() {
             </span>
           </Link>
 
-          <nav className="ml-4 hidden items-center gap-1 md:flex">
-            <NavItems />
-          </nav>
+          {/* The search field is the centrepiece of the header now that the links
+              have moved to the sidebar. */}
+          <div className="hidden flex-1 justify-center px-2 sm:flex">
+            <SearchBar className="w-full max-w-2xl" />
+          </div>
 
-          <SearchBar className="ml-auto w-full max-w-md" />
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
+            <button
+              type="button"
+              onClick={() => setMobileSearch((open) => !open)}
+              aria-label={t('nav.search')}
+              aria-expanded={mobileSearch}
+              className="rounded-lg p-2 text-ink-300 transition hover:bg-ink-800 sm:hidden"
+            >
+              <Search className="size-5" />
+            </button>
 
-          <div className="flex shrink-0 items-center gap-2">
             <LanguageSwitcher />
+
             {user ? (
-              <div className="flex items-center gap-1">
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/upload')}
+                  className="rounded-full"
+                  title={t('nav.upload')}
+                >
+                  <Upload className="size-4" />
+                  <span className="hidden lg:inline">{t('nav.upload')}</span>
+                </Button>
                 <Link
                   to="/account"
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
+                  className="flex items-center gap-2 rounded-full p-0.5 transition hover:bg-ink-800"
                   title={user.display_name}
                 >
-                  <span className="grid size-7 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                  <span className="grid size-8 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">
                     {(user.display_name || user.username).slice(0, 2).toUpperCase()}
                   </span>
-                  <span className="hidden lg:block">{user.display_name}</span>
                 </Link>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleLogout}
-                  title={t('nav.logout')}
-                  aria-label={t('nav.logout')}
-                >
-                  <LogOut className="size-4" />
-                </Button>
-              </div>
+              </>
             ) : (
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
@@ -205,54 +136,38 @@ export default function Layout() {
           </div>
         </div>
 
-        {sidebarOpen && (
-          <nav className="flex flex-col gap-1 border-t border-ink-800 p-3 md:hidden">
-            <NavItems onNavigate={closeSidebar} />
-          </nav>
+        {mobileSearch && (
+          <div className="border-t border-ink-800 p-3 sm:hidden">
+            <SearchBar autoFocus onSubmitted={() => setMobileSearch(false)} />
+          </div>
         )}
       </header>
 
-      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6">
-        <Outlet />
-      </main>
+      <div className="flex flex-1">
+        <Sidebar />
 
-      <footer className="border-t border-ink-800 py-6">
-        <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-2 px-4 text-xs text-ink-400 sm:flex-row">
-          <p>
-            {t('app.name')} — {t('app.tagline')}
-          </p>
-          <div className="flex items-center gap-4">
-            <a href="/api/docs/" className="transition hover:text-ink-100">
-              API
-            </a>
-            <a href="/admin/" className="transition hover:text-ink-100">
-              {t('nav.admin')}
-            </a>
-            {['moderator', 'admin'].includes(user?.role) && (
-              <Link to="/manage/moderation"
-                    className="inline-flex items-center gap-1 transition hover:text-ink-100">
-                <Gavel className="size-3.5" aria-hidden />
-                {t('nav.moderation')}
-              </Link>
-            )}
-            {user?.role === 'admin' && (
-              <>
-                <Link to="/manage/ads"
-                      className="inline-flex items-center gap-1 transition hover:text-ink-100">
-                  <Megaphone className="size-3.5" aria-hidden />
-                  {t('nav.adsAdmin')}
-                </Link>
-                <Link to="/manage/dashboard"
-                      className="inline-flex items-center gap-1 transition hover:text-ink-100">
-                  <LayoutDashboard className="size-3.5" aria-hidden />
-                  {t('nav.dashboard')}
-                </Link>
-              </>
-            )}
-            <span>v0.2.0</span>
-          </div>
+        {/* min-w-0 so a wide child (a table, a chart) scrolls inside itself
+            instead of stretching the flex row and pushing the sidebar off. */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6">
+            <Outlet />
+          </main>
+
+          <footer className="border-t border-ink-800 py-6">
+            <div className="mx-auto flex max-w-[1600px] flex-col items-center justify-between gap-2 px-4 text-xs text-ink-400 sm:flex-row">
+              <p>
+                {t('app.name')} — {t('app.tagline')}
+              </p>
+              <div className="flex items-center gap-4">
+                <a href="/api/docs/" className="transition hover:text-ink-100">
+                  API
+                </a>
+                <span>v0.2.0</span>
+              </div>
+            </div>
+          </footer>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }
