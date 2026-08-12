@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import Logo from '@/components/Logo'
 import SearchBar from '@/components/SearchBar'
 import Sidebar from '@/components/Sidebar'
 import { Button } from '@/components/ui'
@@ -71,12 +72,10 @@ export default function Layout() {
             {sidebarOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
 
-          <Link to="/" className="flex shrink-0 items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-500">
-              <svg viewBox="0 0 24 24" className="size-4 fill-white" aria-hidden>
-                <path d="M8 5l11 7-11 7z" />
-              </svg>
-            </span>
+          <Link to="/" className="flex shrink-0 items-center gap-2" aria-label={t('app.name')}>
+            <Logo size={36} />
+            {/* The wordmark is dropped below sm so the search field keeps its
+                room; the mark alone still identifies the site. */}
             <span className="hidden text-lg font-bold tracking-tight sm:block">
               {t('app.name')}
             </span>

@@ -93,6 +93,11 @@ export function useDocumentMeta({
     // Query strings produce a distinct URL per filter combination for the same
     // content; the canonical points at the bare path unless told otherwise.
     const url = canonical || `${window.location.origin}${window.location.pathname}`
+    // Absolute, and with a fallback: a card with no image at all unfurls as a
+    // bare line of text. Pages with their own art (a video poster) pass it in.
+    const card = image
+      ? new URL(image, window.location.origin).href
+      : `${window.location.origin}/og-image.png`
 
     const previousTitle = document.title
     document.title = fullTitle
@@ -106,12 +111,12 @@ export function useDocumentMeta({
     setMeta('property', 'og:type', type)
     setMeta('property', 'og:url', url)
     setMeta('property', 'og:site_name', siteName)
-    setMeta('property', 'og:image', image)
+    setMeta('property', 'og:image', card)
 
-    setMeta('name', 'twitter:card', image ? 'summary_large_image' : 'summary')
+    setMeta('name', 'twitter:card', 'summary_large_image')
     setMeta('name', 'twitter:title', fullTitle)
     setMeta('name', 'twitter:description', description)
-    setMeta('name', 'twitter:image', image)
+    setMeta('name', 'twitter:image', card)
 
     setJsonLd(jsonLdKey ? JSON.parse(jsonLdKey) : null)
 

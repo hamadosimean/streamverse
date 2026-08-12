@@ -254,6 +254,26 @@ server {
         add_header Permissions-Policy $sv_permissions always;
     }
 
+    # The site root gets the same split as /watch/: index.html can only carry a
+    # relative og:image, and several unfurlers refuse to resolve one.
+    location = / {
+        set $sv_upstream http://frontend:80;
+        set $sv_uri      /;
+        if ($sv_is_social_crawler) {
+            set $sv_upstream http://backend:8000;
+            set $sv_uri      /_preview/site;
+        }
+        proxy_pass $sv_upstream$sv_uri;
+
+        add_header Vary "User-Agent" always;
+        add_header Content-Security-Policy $sv_csp always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy $sv_permissions always;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+    }
+
     # ---- React SPA -------------------------------------------------------
     location / {
         set $spa http://frontend:80;

@@ -55,14 +55,20 @@ def _jsonld(payload: dict) -> str:
     return mark_safe(f'<script type="application/ld+json">{raw}</script>')
 
 
-def _poster(video: Video) -> str | None:
+def _default_card() -> str:
+    """The site's own social card, used when a page has no art of its own."""
+    return _absolute("/og-image.png")
+
+
+def _poster(video: Video) -> str:
     # Preview cards are fetched by a third-party crawler with no credentials, so
     # a presigned private URL is useless to it (and would expire). Only public
-    # posters are advertised.
+    # posters are advertised; anything else falls back to the site card, because
+    # a preview with no image at all unfurls as a bare line of text.
     from apps.core import storage
 
     if not video.poster_path or video.visibility != Visibility.PUBLIC:
-        return None
+        return _default_card()
     return storage.public_url(video.poster_path, bucket=settings.MINIO_PUBLIC_BUCKET)
 
 
@@ -102,6 +108,44 @@ def robots_txt(request):
         "",
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain; charset=utf-8")
+
+
+@require_GET
+@cache_control(public=True, max_age=600)
+def site_preview(request):
+    """Link preview for the site root.
+
+    Without this, a shared home-page link unfurls from index.html, whose
+    og:image can only be a relative path — the origin is not known at build
+    time, and several unfurlers refuse to resolve a relative image.
+    """
+    return TemplateResponse(
+        request,
+        "seo/site_preview.html",
+        {
+            "site_name": settings.SITE_NAME,
+            "canonical": _absolute("/"),
+            "description": settings.SITE_DESCRIPTION,
+            "poster": _default_card(),
+            "jsonld": _jsonld({
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": settings.SITE_NAME,
+                "url": _absolute("/"),
+                "description": settings.SITE_DESCRIPTION,
+                "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                        "@type": "EntryPoint",
+                        "urlTemplate": _absolute("/search?q={search_term_string}"),
+                    },
+                    "query-input": "required name=search_term_string",
+                },
+            }),
+            "language": get_language() or "fr",
+            "noindex": False,
+        },
+    )
 
 
 @require_GET
@@ -210,6 +254,7 @@ def channel_preview(request, username):
             "site_name": settings.SITE_NAME,
             "canonical": canonical,
             "description": description,
+            "poster": _default_card(),
             "jsonld": _jsonld(payload),
             "language": get_language() or "fr",
             "noindex": False,
