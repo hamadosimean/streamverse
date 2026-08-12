@@ -1,0 +1,40 @@
+{
+  "name": "streamverse-frontend",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "StreamVerse — React + Vite frontend (JSX, no TypeScript).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.7.1",
+    "@tanstack/react-query": "5.101.4",
+    "axios": "1.19.0",
+    "clsx": "2.1.1",
+    "date-fns": "4.4.0",
+    "hls.js": "1.6.17",
+    "i18next": "26.3.6",
+    "lucide-react": "1.31.0",
+    "nprogress": "0.2.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-hook-form": "7.85.0",
+    "react-hot-toast": "2.6.0",
+    "react-i18next": "17.0.11",
+    "react-router-dom": "7.18.2",
+    "recharts": "3.10.1",
+    "tailwind-merge": "3.6.0",
+    "tus-js-client": "4.3.1",
+    "zod": "4.4.3",
+    "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-react": "6.0.5",
+    "tailwindcss": "4.3.3",
+    "vite": "8.2.1"
+  }
+}

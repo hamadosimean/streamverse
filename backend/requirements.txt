@@ -1,0 +1,46 @@
+# StreamVerse backend dependencies.
+#
+# Versions resolved against PyPI at build time (not from memory) and pinned for
+# reproducibility.
+#
+# NOTE ON DJANGO VERSION: the latest stable Django at scaffold time was 6.1, but
+# it is NOT usable with this stack: django-celery-beat 2.9.0 declares
+# `Django<6.1`, and djoser 2.3.4 declares support only through Django 5.2.
+# Django 5.2.17 is the newest release that every required dependency actually
+# supports, and it is an LTS (security support to April 2028). Revisit once
+# django-celery-beat and djoser publish 6.x support.
+Django==5.2.17
+djangorestframework==3.18.0
+djoser==2.3.4
+djangorestframework-simplejwt==5.5.1
+django-jazzmin==3.0.5
+drf-spectacular==0.30.0
+django-cors-headers==4.9.0
+django-filter==26.1
+
+# ASGI / realtime
+channels==4.3.2
+channels-redis==4.3.0
+uvicorn[standard]==0.52.1
+gunicorn==26.0.0
+
+# Async tasks
+celery==5.6.3
+redis==8.1.0
+django-celery-beat==2.9.0
+django-celery-results==2.6.0
+flower==2.0.1
+
+# Storage (MinIO / S3-compatible)
+django-storages==1.14.6
+boto3==1.43.68
+
+# Misc
+requests==2.34.2          # MediaMTX control-API reconciliation
+django-environ==0.14.0
+django-cleanup==9.0.0
+python-magic==0.4.27
+psycopg[binary]==3.3.4
+whitenoise==6.12.0
+bleach==6.4.0
+Pillow==12.3.0

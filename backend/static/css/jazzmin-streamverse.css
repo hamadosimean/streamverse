@@ -1,0 +1,16 @@
+/* StreamVerse brand touches on top of the Jazzmin flatly/darkly themes. */
+:root { --sv-indigo: #6366f1; --sv-violet: #a855f7; }
+
+.main-header.navbar { border-bottom: 2px solid var(--sv-indigo); }
+.brand-link { background: linear-gradient(135deg, var(--sv-indigo), var(--sv-violet)); }
+.brand-link .brand-text { font-weight: 700; letter-spacing: .3px; }
+.btn-primary { background-color: var(--sv-indigo); border-color: var(--sv-indigo); }
+.btn-primary:hover { background-color: #4f46e5; border-color: #4f46e5; }
+.card-primary:not(.card-outline) > .card-header { background-color: var(--sv-indigo); }
+a { color: #4f46e5; }
+/* Pipeline fields are Celery-owned; make their read-only state visually obvious. */
+.field-status .readonly, .field-processing_stage .readonly,
+.field-hls_master_path .readonly, .field-storage_bucket .readonly {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; color: #4b5563;
+}

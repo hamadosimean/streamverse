@@ -1,0 +1,123 @@
+# MediaMTX — RTMP ingest and HLS repackaging for StreamVerse live streaming.
+#
+# Chosen over nginx-rtmp-module deliberately: arut/nginx-rtmp-module has had no
+# release in years and does not build cleanly against current Nginx, whereas
+# MediaMTX is actively maintained, repackages RTMP to HLS natively, records
+# without an external process, and exposes HTTP hooks we can point at Django.
+#
+# Ports inside the container:
+#   1935  RTMP ingest        (published on the host as 1936)
+#   8888  HLS output         (not published — nginx proxies it at /live-hls/)
+#   9997  control API        (not published — internal reconciliation only)
+
+logLevel: info
+logDestinations: [stdout]
+
+# --------------------------------------------------------------------------
+# Authentication
+#
+# Every publish and read is authorised by Django. MediaMTX cannot attach a
+# shared-secret header to this call, so the endpoint is protected by network
+# isolation instead: nginx returns 404 for /api/live/auth/ at the edge, and the
+# path is only routable from inside the compose network.
+#
+# For a publish, Django receives the RTMP path (`live/<slug>`) and the query
+# string (`key=<secret>`) and compares the key in constant time.
+# --------------------------------------------------------------------------
+authMethod: http
+authHTTPAddress: http://backend:8000/api/live/auth/
+authInternalUsers: []
+
+# READS ARE EXCLUDED ON PURPOSE.
+#
+# MediaMTX completes HTTP read-auth with a `Secure` cookie. Browsers (and curl)
+# refuse Secure cookies over plain HTTP, so on an http:// deployment the
+# handshake can never complete and every playlist request fails. Rather than
+# require HTTPS for a local demo, read authorisation is enforced one layer out:
+# nginx `auth_request`s Django for every *playlist* fetch (see nginx/default.conf).
+#
+# That is a real enforcement point, not a cosmetic one: a player cannot keep
+# playing a live stream without refreshing the playlist every few seconds, so
+# disabling a channel stops in-flight playback within one segment duration.
+# Segments themselves are not individually authorised — they are unguessable
+# only by obscurity, and per-segment auth would put Django back in the media
+# path, which is exactly what this architecture avoids.
+authHTTPExclude:
+  - action: read
+  - action: api
+  - action: metrics
+  - action: pprof
+  - action: playback
+
+# --------------------------------------------------------------------------
+# Protocols
+# --------------------------------------------------------------------------
+rtmp: yes
+rtmpAddress: :1935
+rtmpEncryption: "no"
+
+hls: yes
+hlsAddress: :8888
+# `mpegts` rather than `lowLatency`: it is what hls.js plays most reliably
+# across browsers, and the few seconds of extra latency are an acceptable
+# trade for a demo that works everywhere. Switch to `lowLatency` if sub-second
+# glass-to-glass matters more than compatibility.
+hlsVariant: mpegts
+hlsSegmentCount: 7
+hlsSegmentDuration: 2s
+hlsPartDuration: 200ms
+hlsSegmentMaxSize: 50M
+# Keep repackaging even with no viewers, so the first viewer to arrive does not
+# wait for a fresh playlist to be built.
+hlsAlwaysRemux: yes
+# nginx is the only origin that talks to MediaMTX; it adds its own CORS headers.
+hlsAllowOrigins: ['*']
+hlsTrustedProxies: []
+
+rtsp: no
+srt: no
+webrtc: no
+# Not needed for this topology; leaving it off avoids generating a TLS cert
+# and binding three more ports at boot.
+moq: no
+
+api: yes
+apiAddress: :9997
+
+metrics: no
+playback: no
+
+# --------------------------------------------------------------------------
+# Path defaults
+# --------------------------------------------------------------------------
+pathDefaults:
+  source: publisher
+
+  # Recording. fMP4 with a long segment duration means a typical session is one
+  # file, so the conversion task usually has nothing to concatenate.
+  record: yes
+  recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+  recordFormat: fmp4
+  recordPartDuration: 1s
+  recordSegmentDuration: 1h
+  recordDeleteAfter: 0s   # retention is Celery's job, not MediaMTX's
+
+  # Lifecycle hooks -> Django. `wget` ships with the alpine-based -ffmpeg image.
+  # MTX_PATH is substituted by MediaMTX.
+  # `runOnAvailable` / `runOnUnavailable` are the current names; the older
+  # runOnReady / runOnNotReady are deprecated aliases in MediaMTX 1.20.
+  runOnAvailable: >
+    wget -q -O- --header="Content-Type: application/json"
+    --header="X-Live-Hook-Secret: $MTX_HOOK_SECRET"
+    --post-data='{"path":"$MTX_PATH"}'
+    http://backend:8000/api/live/hooks/ready/
+  runOnAvailableRestart: no
+
+  runOnUnavailable: >
+    wget -q -O- --header="Content-Type: application/json"
+    --header="X-Live-Hook-Secret: $MTX_HOOK_SECRET"
+    --post-data='{"path":"$MTX_PATH"}'
+    http://backend:8000/api/live/hooks/not-ready/
+
+paths:
+  all_others:
