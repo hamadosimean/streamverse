@@ -20,6 +20,7 @@ from rest_framework.views import APIView
 from apps.audit import services as audit
 from apps.audit.models import AuditAction
 from apps.core.permissions import IsAdmin
+from apps.core.sorting import SortableMixin, SortOption
 from apps.monetization.models import (
     AdCampaign,
     SubscriptionPlan,
@@ -318,10 +319,22 @@ class AdImpressionEventView(APIView):
 # Admin: ad campaigns (a decision workflow, hence a React view not admin CRUD)
 # ==========================================================================
 @extend_schema(tags=["ads-admin"])
-class AdCampaignViewSet(viewsets.ModelViewSet):
+class AdCampaignViewSet(SortableMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin]
     serializer_class = AdCampaignSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    sort_options = {
+        "recent": SortOption("recent", ("-created_at", "-id")),
+        "oldest": SortOption("oldest", ("created_at", "id")),
+        "impressions": SortOption("impressions", ("-impression_count", "-id")),
+        "clicks": SortOption("clicks", ("-click_count", "-id")),
+        # The two an ad operator actually scans for: what stops soon, and what
+        # is about to burn through its inventory.
+        "ending": SortOption("ending", ("end_date", "id")),
+        "advertiser": SortOption("advertiser", ("advertiser_name", "title")),
+    }
+    default_sort = "recent"
 
     def get_queryset(self):
         queryset = AdCampaign.objects.select_related("created_by").prefetch_related(
@@ -330,7 +343,7 @@ class AdCampaignViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get("status")
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        return queryset.order_by("-created_at")
+        return self.apply_sort(queryset)
 
     def perform_create(self, serializer):
         campaign = serializer.save(created_by=self.request.user)

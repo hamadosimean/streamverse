@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.sorting import SortableMixin, SortOption
 from apps.catalog.models import Tag
 from apps.search.services import related_videos, search_videos
 from apps.videos.models import Video
@@ -15,7 +16,7 @@ from apps.videos.serializers import VideoCardSerializer
 
 
 @extend_schema(tags=["search"])
-class VideoSearchView(ListAPIView):
+class VideoSearchView(SortableMixin, ListAPIView):
     """Full-text search across title, tags and description.
 
     The response carries a `mode` field (`fulltext` / `fuzzy` / `none`) so the
@@ -26,15 +27,31 @@ class VideoSearchView(ListAPIView):
     permission_classes = [AllowAny]
     serializer_class = VideoCardSerializer
 
+    # `relevance` is not in this map on purpose: it is whatever ordering the
+    # search backend already applied (rank, or trigram similarity), so it means
+    # "leave the ordering alone" rather than a column to sort by.
+    sort_options = {
+        "recent": SortOption("recent", ("-published_at", "-id")),
+        "oldest": SortOption("oldest", ("published_at", "id")),
+        "popular": SortOption("popular", ("-view_count", "-id")),
+        "longest": SortOption("longest", ("-duration_seconds", "-id")),
+    }
+    default_sort = "relevance"
+
     @extend_schema(parameters=[
         OpenApiParameter("q", str, description="Requete. Supporte \"phrase exacte\" "
                                               "et -exclusion (syntaxe websearch)."),
         OpenApiParameter("category", str, description="Filtrer par slug de categorie."),
+        OpenApiParameter("sort", str,
+                         description="relevance (defaut) | recent | oldest | "
+                                     "popular | longest"),
     ])
     def get(self, request, *args, **kwargs):
         response = super().get(request, *args, **kwargs)
         response.data["mode"] = getattr(self, "_mode", "none")
         response.data["query"] = request.query_params.get("q", "")
+        response.data["sort"] = getattr(self, "applied_sort", "relevance")
+        response.data["sort_options"] = ["relevance", *self.sort_options]
         return response
 
     def get_queryset(self):
@@ -47,6 +64,16 @@ class VideoSearchView(ListAPIView):
 
         results, mode = search_videos(query, queryset=base)
         self._mode = mode
+
+        # Only re-order when the caller asked for something other than
+        # relevance; otherwise the rank ordering search just computed is thrown
+        # away, which is the one ordering a search page should default to.
+        requested = self.request.query_params.get("sort")
+        if requested in self.sort_options:
+            self.applied_sort = requested
+            return results.order_by(*self.sort_options[requested].ordering)
+
+        self.applied_sort = "relevance"
         return results
 
 

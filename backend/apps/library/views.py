@@ -19,6 +19,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.core.sorting import SortableMixin, SortOption
 from apps.engagement.models import Like
 from apps.library import services
 from apps.library.models import Bookmark, Follow, WatchHistoryEntry
@@ -66,11 +67,20 @@ class _ViewerStateMixin:
 # Watch history
 # --------------------------------------------------------------------------
 @extend_schema(tags=["library"])
-class WatchHistoryView(_ViewerStateMixin, ListAPIView):
-    """Recently viewed, most recent first."""
+class WatchHistoryView(SortableMixin, _ViewerStateMixin, ListAPIView):
+    """Recently viewed."""
 
     permission_classes = [IsAuthenticated]
     serializer_class = WatchHistoryEntrySerializer
+
+    sort_options = {
+        "recent": SortOption("recent", ("-last_watched_at", "-id")),
+        "oldest": SortOption("oldest", ("last_watched_at", "id")),
+        "most_watched": SortOption("most_watched", ("-watch_count", "-last_watched_at")),
+        "longest": SortOption("longest", ("-video__duration_seconds", "-id")),
+        "title": SortOption("title", ("video__title", "id")),
+    }
+    default_sort = "recent"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -83,11 +93,13 @@ class WatchHistoryView(_ViewerStateMixin, ListAPIView):
             # rather than sit there as a dead card.
             .exclude(video__status="taken_down")
         )
+        queryset = self.apply_sort(queryset)
         if self.request.query_params.get("resumable") == "true":
             # Filtered in Python: `is_resumable` is a computed property, and a
-            # SQL equivalent would duplicate the rule in two places.
+            # SQL equivalent would duplicate the rule in two places. The sort is
+            # applied first so the surviving list keeps the requested order.
             return [entry for entry in queryset if entry.is_resumable]
-        return queryset.order_by("-last_watched_at")
+        return queryset
 
     @extend_schema(operation_id="library_history_clear", responses={204: None})
     def delete(self, request):
@@ -118,20 +130,29 @@ class WatchHistoryEntryView(APIView):
 # Bookmarks
 # --------------------------------------------------------------------------
 @extend_schema(tags=["library"])
-class BookmarkListView(_ViewerStateMixin, ListAPIView):
+class BookmarkListView(SortableMixin, _ViewerStateMixin, ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = BookmarkSerializer
+
+    sort_options = {
+        "recent": SortOption("recent", ("-created_at", "-id")),
+        "oldest": SortOption("oldest", ("created_at", "id")),
+        "title": SortOption("title", ("video__title", "id")),
+        "longest": SortOption("longest", ("-video__duration_seconds", "-id")),
+        "popular": SortOption("popular", ("-video__view_count", "-id")),
+    }
+    default_sort = "recent"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Bookmark.objects.none()
-        return (
+        queryset = (
             Bookmark.objects.filter(user=self.request.user)
             .select_related("video", "video__uploader", "video__category")
             .prefetch_related("video__tags")
             .exclude(video__status="taken_down")
-            .order_by("-created_at")
         )
+        return self.apply_sort(queryset)
 
 
 @extend_schema(tags=["library"])
@@ -161,12 +182,22 @@ class BookmarkToggleView(APIView):
 # Liked videos
 # --------------------------------------------------------------------------
 @extend_schema(tags=["library"])
-class LikedVideosView(_ViewerStateMixin, ListAPIView):
+class LikedVideosView(SortableMixin, _ViewerStateMixin, ListAPIView):
     """Videos the caller liked. Dislikes are deliberately not listed —
     nobody wants a browsable shelf of things they disliked."""
 
     permission_classes = [IsAuthenticated]
     serializer_class = LibraryVideoSerializer
+
+    sort_options = {
+        # `liked_at` is annotated below; the rest order by the video itself.
+        "recent": SortOption("recent", ("-liked_at", "-id")),
+        "oldest": SortOption("oldest", ("liked_at", "id")),
+        "popular": SortOption("popular", ("-view_count", "-id")),
+        "title": SortOption("title", ("title", "id")),
+        "published": SortOption("published", ("-published_at", "-id")),
+    }
+    default_sort = "recent"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -176,13 +207,13 @@ class LikedVideosView(_ViewerStateMixin, ListAPIView):
         # join on `likes` would order correctly but multiply each video by its
         # like count, so the page would repeat rows.
         liked_at = liked.filter(video=OuterRef("pk")).values("created_at")[:1]
-        return (
+        queryset = (
             Video.objects.filter(pk__in=liked.values("video_id"))
             .exclude(status="taken_down")
             .with_related()
             .annotate(liked_at=Subquery(liked_at))
-            .order_by("-liked_at")
         )
+        return self.apply_sort(queryset)
 
 
 # --------------------------------------------------------------------------
@@ -218,26 +249,37 @@ class FollowToggleView(APIView):
 
 
 @extend_schema(tags=["library"])
-class FollowingListView(ListAPIView):
+class FollowingListView(SortableMixin, ListAPIView):
     """Channels the caller follows, with how much each has published."""
 
     permission_classes = [IsAuthenticated]
     serializer_class = FollowedChannelSerializer
+
+    sort_options = {
+        "recent": SortOption("recent", ("-created_at", "-id")),
+        "oldest": SortOption("oldest", ("created_at", "id")),
+        "name": SortOption("name", ("channel__display_name", "id")),
+        "videos": SortOption("videos", ("-video_count", "-id")),
+        # "Who has posted lately" — the reason most people open this list.
+        "active": SortOption("active", ("-latest_video_at", "-id")),
+        "followers": SortOption("followers", ("-channel__follower_count", "-id")),
+    }
+    default_sort = "recent"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Follow.objects.none()
         published = Q(channel__videos__status="ready",
                       channel__videos__visibility="public")
-        return (
+        queryset = (
             Follow.objects.filter(follower=self.request.user)
             .select_related("channel")
             .annotate(
                 video_count=Count("channel__videos", filter=published, distinct=True),
                 latest_video_at=Max("channel__videos__published_at", filter=published),
             )
-            .order_by("-created_at")
         )
+        return self.apply_sort(queryset)
 
 
 @extend_schema(tags=["library"])
@@ -257,7 +299,7 @@ class FollowersListView(ListAPIView):
 
 
 @extend_schema(tags=["library"])
-class FollowingFeedView(_ViewerStateMixin, ListAPIView):
+class FollowingFeedView(SortableMixin, _ViewerStateMixin, ListAPIView):
     """Recent videos from the channels the caller follows.
 
     Chronological, not ranked. The platform has no recommendation model and this
@@ -268,17 +310,24 @@ class FollowingFeedView(_ViewerStateMixin, ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = LibraryVideoSerializer
 
+    sort_options = {
+        "recent": SortOption("recent", ("-published_at", "-id")),
+        "popular": SortOption("popular", ("-view_count", "-published_at")),
+        "oldest": SortOption("oldest", ("published_at", "id")),
+        "longest": SortOption("longest", ("-duration_seconds", "-id")),
+    }
+    default_sort = "recent"
+
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Video.objects.none()
         channel_ids = services.followed_channel_ids(self.request.user)
         if not channel_ids:
             return Video.objects.none()
-        return (
+        return self.apply_sort(
             Video.objects.publicly_listed()
             .filter(uploader_id__in=channel_ids)
             .with_related()
-            .order_by("-published_at")
         )
 
 
