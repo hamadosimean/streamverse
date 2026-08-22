@@ -193,6 +193,56 @@ return <h1>{t('video.watchPage.title')}</h1>
 
 Add the key to both `src/locales/fr.json` and `src/locales/en.json`.
 
+Both files must stay at exact key parity — same keys, same nesting, no
+locale-only extras. After editing, check it:
+```bash
+python3 - <<'EOF'
+import json
+fr = json.load(open('frontend/src/locales/fr.json'))
+en = json.load(open('frontend/src/locales/en.json'))
+flat = lambda d, p='': {k for key, v in d.items()
+                        for k in (flat(v, f'{p}{key}.') if isinstance(v, dict) else {p + key})}
+print('only in fr:', flat(fr) - flat(en) or 'none')
+print('only in en:', flat(en) - flat(fr) or 'none')
+EOF
+```
+
+### Copy conventions
+
+French is the default locale and English the secondary; write both when you
+add a key.
+
+**French strings are written without accents.** The whole locale file is
+accent-free, and mixing the two conventions looks like a bug rather than a
+choice. `televerser`, not `téléverser`.
+
+**Name what the viewer experiences, not how it is built.** Implementation
+vocabulary belongs in these docs, not in the product. The user does not know
+what a rendition, a manifest, a tsvector or ffprobe is, and does not need to.
+
+| Instead of | Write |
+| --- | --- |
+| Rendus disponibles / Available renditions | Qualites disponibles / Available qualities |
+| Diffusion directe depuis le stockage objet | Lecture adaptative |
+| Assemblage du manifeste / Building manifest | Assemblage des qualites / Assembling qualities |
+| analyse (ffprobe) - transcodage HLS multi-qualite | analyse du fichier, encodage en plusieurs qualites |
+| Recherche plein texte PostgreSQL (tsvector + index GIN) | Recherche sur les titres, les tags et les descriptions |
+
+The exception is copy whose audience is an operator rather than a viewer —
+`admin.*`, `billing.sandbox*`, `live.streamKeyHint`. Those are read by someone
+configuring the system, and being precise there is the point. Keep them
+technical.
+
+**Do not advertise what has not shipped, and delete the claim once it has.**
+`home.heroSubtitle` promised "et bientot le direct" long after live streaming
+went live; `studio.engagementNotice` told users that counters were "alimentes
+en phase 3", quoting the build plan back at them. A string that describes a
+roadmap will go stale, and nothing in CI will catch it. Describe the current
+behaviour instead.
+
+**Keep it short.** These strings sit in hints, tooltips and empty states. If a
+sentence needs a subordinate clause to survive, it is explaining too much.
+
 ### State management rules
 
 - **Zustand** only for global client state (auth, player, live connection)

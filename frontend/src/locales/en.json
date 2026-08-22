@@ -65,13 +65,13 @@
   },
   "home": {
     "heroTitle": "Watch, upload, share",
-    "heroSubtitle": "A self-hosted video platform: multi-quality transcoding, adaptive playback, and live streaming soon.",
+    "heroSubtitle": "Video streaming and live broadcasting platform.",
     "recent": "Recently added",
     "trending": "Trending this month",
     "mostViewed": "Most viewed",
     "browseAll": "Browse the full catalogue",
     "empty": "No published videos yet.",
-    "emptyHint": "Upload the first one and it will appear here once transcoded."
+    "emptyHint": "Upload the first one and it will appear here once processing is done."
   },
   "browse": {
     "title": "Browse",
@@ -98,12 +98,12 @@
     "publishedOn": "Published {{date}}",
     "quality": "Quality",
     "auto": "Auto",
-    "renditions": "Available renditions",
-    "sourceResolution": "Source resolution",
-    "deliveryPublic": "Served directly from object storage",
-    "deliverySigned": "Private delivery via presigned URLs",
+    "renditions": "Available qualities",
+    "sourceResolution": "Original resolution",
+    "deliveryPublic": "Adaptive streaming",
+    "deliverySigned": "Secure private playback",
     "related": "Related videos",
-    "relatedNote": "Selected from shared tags and category — not personalised recommendations."
+    "relatedNote": "Suggested from shared tags and category — no personal profiling."
   },
   "player": {
     "play": "Play",
@@ -118,7 +118,7 @@
     "normal": "Normal",
     "error": "Playback error",
     "errorHint": "The stream could not be loaded. Try again.",
-    "notSupported": "Your browser does not support HLS playback.",
+    "notSupported": "Your browser cannot play this video.",
     "shortcuts": "Shortcuts: space = play/pause, arrows = +/- 5s, M = mute, F = fullscreen"
   },
   "upload": {
@@ -145,7 +145,7 @@
     "fileTooLarge": "File too large (maximum {{max}}).",
     "invalidType": "Unsupported format. Use MP4, MOV, MKV, WebM or AVI.",
     "clearFinished": "Clear finished uploads",
-    "pipelineNote": "After upload the video goes through: probe (ffprobe) - multi-quality HLS transcode - thumbnails - publish."
+    "pipelineNote": "After upload: file analysis, encoding at several qualities, thumbnail generation, then publication."
   },
   "studio": {
     "title": "Studio",
@@ -163,15 +163,15 @@
     "empty": "You have not uploaded any video yet.",
     "emptyHint": "Upload your first video to see it here.",
     "uploadFirst": "Upload a video",
-    "engagementNotice": "View and like counters are wired up in phase 3. Demo values come from the seed data.",
+    "engagementNotice": "No engagement data yet. Counters will appear with the first views.",
     "editTitle": "Edit video",
-    "deleteConfirm": "Permanently delete \"{{title}}\"? Renditions and thumbnails will be erased from object storage.",
+    "deleteConfirm": "Permanently delete \"{{title}}\"? Every encoded quality and thumbnail will be erased.",
     "deleted": "Video deleted.",
     "saved": "Changes saved.",
     "retryQueued": "Transcoding restarted.",
     "retryOnlyFailed": "Only failed videos can be retried.",
     "viewsOverTime": "Views (last 30 days)",
-    "engagementLive": "Views, likes and comments are counted live. A view only counts after a minimum watch time, and repeat views are deduplicated."
+    "engagementLive": "Views, likes and comments are counted live. A view only counts after a minimum watch time, and repeat viewings by the same person count once."
   },
   "video": {
     "status": {
@@ -184,7 +184,7 @@
       "queued": "Queued",
       "probing": "Probing source",
       "transcoding": "Transcoding",
-      "packaging": "Building manifest",
+      "packaging": "Assembling qualities",
       "thumbnails": "Generating thumbnails",
       "publishing": "Publishing",
       "done": "Done"
@@ -342,7 +342,7 @@
     "emptyQuery": "What are you looking for?",
     "emptyQueryHint": "Type a title, a tag, or words from the description.",
     "noResultsHint": "Check the spelling, or try broader words.",
-    "engineNote": "PostgreSQL full-text search (tsvector + GIN index) with a trigram fallback for typos. Genuinely typo-tolerant search would need Meilisearch or Elasticsearch."
+    "engineNote": "Searches titles, tags and descriptions. Minor typos are tolerated."
   },
   "live": {
     "title": "Live now",

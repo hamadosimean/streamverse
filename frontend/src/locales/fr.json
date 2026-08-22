@@ -65,13 +65,13 @@
   },
   "home": {
     "heroTitle": "Regardez, televersez, partagez",
-    "heroSubtitle": "Une plateforme video auto-hebergee: transcodage multi-qualite, lecture adaptative, et bientot le direct.",
+    "heroSubtitle": "Plateforme de streaming video et de direct.",
     "recent": "Ajoutees recemment",
     "trending": "Tendances du mois",
     "mostViewed": "Les plus vues",
     "browseAll": "Explorer tout le catalogue",
     "empty": "Aucune video publiee pour le moment.",
-    "emptyHint": "Televersez la premiere et elle apparaitra ici une fois transcodee."
+    "emptyHint": "Televersez la premiere et elle apparaitra ici une fois le traitement termine."
   },
   "browse": {
     "title": "Explorer",
@@ -98,12 +98,12 @@
     "publishedOn": "Publiee le {{date}}",
     "quality": "Qualite",
     "auto": "Auto",
-    "renditions": "Rendus disponibles",
-    "sourceResolution": "Resolution source",
-    "deliveryPublic": "Diffusion directe depuis le stockage objet",
-    "deliverySigned": "Diffusion privee via URLs presignees",
+    "renditions": "Qualites disponibles",
+    "sourceResolution": "Resolution d'origine",
+    "deliveryPublic": "Lecture adaptative",
+    "deliverySigned": "Lecture privee securisee",
     "related": "Videos similaires",
-    "relatedNote": "Selection basee sur les tags et la categorie partages — pas de recommandation personnalisee."
+    "relatedNote": "Suggestions basees sur les tags et la categorie, sans profilage."
   },
   "player": {
     "play": "Lecture",
@@ -118,7 +118,7 @@
     "normal": "Normale",
     "error": "Erreur de lecture",
     "errorHint": "Le flux n'a pas pu etre charge. Reessayez.",
-    "notSupported": "Votre navigateur ne prend pas en charge la lecture HLS.",
+    "notSupported": "Votre navigateur ne peut pas lire cette video.",
     "shortcuts": "Raccourcis: espace = lecture/pause, fleches = +/- 5 s, M = muet, F = plein ecran"
   },
   "upload": {
@@ -145,7 +145,7 @@
     "fileTooLarge": "Fichier trop volumineux (maximum {{max}}).",
     "invalidType": "Format non pris en charge. Utilisez MP4, MOV, MKV, WebM ou AVI.",
     "clearFinished": "Effacer les televersements termines",
-    "pipelineNote": "Apres le televersement, la video passe par: analyse (ffprobe) - transcodage HLS multi-qualite - miniatures - publication."
+    "pipelineNote": "Apres le televersement: analyse du fichier, encodage en plusieurs qualites, generation des miniatures, puis publication."
   },
   "studio": {
     "title": "Studio",
@@ -163,15 +163,15 @@
     "empty": "Vous n'avez encore televerse aucune video.",
     "emptyHint": "Televersez votre premiere video pour la voir apparaitre ici.",
     "uploadFirst": "Televerser une video",
-    "engagementNotice": "Les compteurs de vues et de j'aime sont alimentes en phase 3. Les valeurs de demonstration proviennent des donnees de seed.",
+    "engagementNotice": "Aucune donnee d'engagement pour le moment. Les compteurs apparaitront des les premieres vues.",
     "editTitle": "Modifier la video",
-    "deleteConfirm": "Supprimer definitivement \"{{title}}\" ? Les rendus et miniatures seront effaces du stockage objet.",
+    "deleteConfirm": "Supprimer definitivement \"{{title}}\" ? Toutes les qualites encodees et les miniatures seront effacees.",
     "deleted": "Video supprimee.",
     "saved": "Modifications enregistrees.",
     "retryQueued": "Transcodage relance.",
     "retryOnlyFailed": "Seules les videos en echec peuvent etre relancees.",
     "viewsOverTime": "Vues (30 derniers jours)",
-    "engagementLive": "Les vues, j'aime et commentaires sont comptabilises en direct. Une vue n'est comptee qu'apres une duree de visionnage minimale, et les vues repetees sont dedupliquees."
+    "engagementLive": "Les vues, j'aime et commentaires sont comptabilises en direct. Une vue n'est comptee qu'apres une duree de visionnage minimale, et les visionnages repetes d'un meme spectateur ne comptent qu'une fois."
   },
   "video": {
     "status": {
@@ -184,7 +184,7 @@
       "queued": "En file d'attente",
       "probing": "Analyse du fichier",
       "transcoding": "Transcodage",
-      "packaging": "Assemblage du manifeste",
+      "packaging": "Assemblage des qualites",
       "thumbnails": "Generation des miniatures",
       "publishing": "Publication",
       "done": "Termine"
@@ -342,7 +342,7 @@
     "emptyQuery": "Que cherchez-vous ?",
     "emptyQueryHint": "Saisissez un titre, un tag ou des mots de la description.",
     "noResultsHint": "Verifiez l'orthographe ou essayez des mots plus generaux.",
-    "engineNote": "Recherche plein texte PostgreSQL (tsvector + index GIN) avec repli trigramme sur les fautes de frappe. Une recherche reellement tolerante aux fautes necessiterait Meilisearch ou Elasticsearch."
+    "engineNote": "Recherche sur les titres, les tags et les descriptions. Les fautes de frappe legeres sont tolerees."
   },
   "live": {
     "title": "En direct maintenant",
