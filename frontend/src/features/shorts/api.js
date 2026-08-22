@@ -14,8 +14,15 @@ export const shortsKeys = {
  * background refetch that reorders the list under the viewer's thumb is worse
  * than slightly stale data.
  */
-export function useShortsFeed({ sort = 'recent', start, category } = {}) {
-  const params = { sort, ...(start && { start }), ...(category && { category }) }
+export function useShortsFeed({ sort = 'shuffle', start, category, seed } = {}) {
+  // `seed` only means anything to the shuffle ordering; sending it with an
+  // explicit sort would fragment the query cache for no reason.
+  const params = {
+    sort,
+    ...(sort === 'shuffle' && seed && { seed }),
+    ...(start && { start }),
+    ...(category && { category }),
+  }
   return useQuery({
     queryKey: shortsKeys.feed(params),
     queryFn: async () => (await api.get('/shorts/', { params })).data,

@@ -630,6 +630,7 @@
     "title": "Shorts",
     "sort": "Trier",
     "sortBy": {
+      "shuffle": "Aleatoire",
       "recent": "Plus recents",
       "popular": "Plus vues",
       "liked": "Plus aimees",
@@ -642,7 +643,7 @@
     "openComments": "Commentaires",
     "openFullPage": "Ouvrir la page complete",
     "seeAll": "Voir tout",
-    "rankingNote": "Fil chronologique (ou trie explicitement). Aucun classement algorithmique optimise pour l'engagement.",
+    "rankingNote": "Ordre aleatoire par defaut, ou le tri que vous choisissez. Aucun classement algorithmique optimise pour l'engagement.",
     "isShort": "Cette video est un Short: format vertical de moins de 90 secondes."
   },
   "seo": {

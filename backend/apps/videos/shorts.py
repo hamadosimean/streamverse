@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 
+from django.db.models import TextField, Value
+from django.db.models.functions import Cast, Concat, MD5
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers
@@ -102,34 +104,79 @@ class _ShortsContextMixin:
 class ShortsFeedView(_ShortsContextMixin, SortableMixin, ListAPIView):
     """The vertical feed.
 
-    Chronological or by popularity — **not** an engagement-optimised ranking.
-    This platform has no recommendation model and a Shorts feed is exactly where
-    one would normally hide; the API says which ordering it used and the UI
-    repeats it.
+    Shuffled by default, or ordered explicitly — **not** an engagement-optimised
+    ranking. This platform has no recommendation model and a Shorts feed is
+    exactly where one would normally hide; the API says which ordering it used
+    and the UI repeats it.
     """
 
     permission_classes = [AllowAny]
     serializer_class = ShortSerializer
 
+    # `shuffle` is handled in get_queryset — its ordering is computed per request
+    # from the seed, so it cannot be a static tuple like the others. It is listed
+    # here so it appears in `sort_options` and survives the whitelist check.
     sort_options = {
+        "shuffle": SortOption("shuffle", ("?",)),
         "recent": SortOption("recent", ("-published_at", "-id")),
         "popular": SortOption("popular", ("-view_count", "-published_at")),
         "liked": SortOption("liked", ("-like_count", "-published_at")),
         "oldest": SortOption("oldest", ("published_at", "id")),
     }
-    default_sort = "recent"
+    default_sort = "shuffle"
 
     @extend_schema(parameters=[
-        OpenApiParameter("sort", str, description="recent | popular | liked | oldest"),
+        OpenApiParameter("sort", str,
+                         description="shuffle | recent | popular | liked | oldest"),
         OpenApiParameter("category", str),
+        OpenApiParameter("seed", str,
+                         description="Shuffle seed. The same seed reproduces the "
+                                     "same order; omit it for a fresh shuffle."),
         OpenApiParameter("start", str,
                          description="Video id to place first — deep-linking into "
                                      "the feed at a specific Short."),
     ])
     def get(self, request, *args, **kwargs):
         response = super().get(request, *args, **kwargs)
-        response.data["ranking"] = "chronological"
+        # Say which ordering was actually used. This used to be hardcoded to
+        # "chronological", which was already untrue for ?sort=popular.
+        response.data["ranking"] = self.RANKING_LABELS.get(
+            getattr(self, "applied_sort", self.default_sort), "explicit"
+        )
         return response
+
+    RANKING_LABELS = {
+        "shuffle": "random",
+        "recent": "chronological",
+        "oldest": "chronological",
+        "popular": "view_count",
+        "liked": "like_count",
+    }
+
+    def _shuffle(self, queryset):
+        """Order pseudo-randomly, but reproducibly for a given seed.
+
+        Plain `order_by("?")` would reshuffle on every request, so page 2 would
+        be drawn from a different order than page 1 — the same Short can then
+        appear twice or never. Hashing the row id together with a caller-supplied
+        seed gives an order that is arbitrary but *stable*: the client keeps one
+        seed for as long as it is scrolling a feed, and asks for a new one when
+        the viewer wants a fresh shuffle.
+
+        `id` is the tiebreaker so equal hashes (or none, if the seed is reused
+        against a changed table) still paginate deterministically.
+
+        Cost: the hash is not indexable, so this sorts every Short matching the
+        filter. The `(is_short, status, visibility, -published_at)` index still
+        narrows the set; only the ordering is a sort. Fine while Shorts number in
+        the thousands — past that, precompute a shuffle bucket per row instead.
+        """
+        seed = (self.request.query_params.get("seed") or "")[:64]
+        return queryset.annotate(
+            _shuffle_key=MD5(
+                Concat(Cast("id", TextField()), Value(seed), output_field=TextField())
+            )
+        ).order_by("_shuffle_key", "id")
 
     def get_queryset(self):
         queryset = Video.objects.shorts().with_related()
@@ -138,6 +185,11 @@ class ShortsFeedView(_ShortsContextMixin, SortableMixin, ListAPIView):
         if category:
             queryset = queryset.filter(category__slug__iexact=category)
 
+        # Resolve the sort key first so an unknown ?sort= still falls back to
+        # the default (shuffle) rather than silently landing in apply_sort.
+        option = self.get_sort_option()
+        if option is not None and option.key == "shuffle":
+            return self._shuffle(queryset)
         return self.apply_sort(queryset)
 
     def get_serializer_context(self):

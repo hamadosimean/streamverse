@@ -6,7 +6,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import ShortOverlay from '@/features/shorts/ShortOverlay'
 import ShortPlayer from '@/features/shorts/ShortPlayer'
 import { Button, EmptyState, ErrorState, LoadingBlock } from '@/components/ui'
-import { cn } from '@/lib/cn'
 import { useShortsFeed } from '@/features/shorts/api'
 import { useDocumentMeta } from '@/hooks/useDocumentMeta'
 import { useViewTracking } from '@/hooks/useViewTracking'
@@ -20,14 +19,20 @@ export default function ShortsPage() {
   useDocumentMeta({ title: t('shorts.title'), description: t('seo.shorts') })
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const sort = searchParams.get('sort') || 'recent'
+  const sort = searchParams.get('sort') || 'shuffle'
 
   const containerRef = useRef(null)
   const itemRefs = useRef([])
   const [index, setIndex] = useState(0)
 
+  // One shuffle seed per visit. Held in state rather than recomputed on render
+  // so the order stays put while the viewer scrolls; a reload draws a new one,
+  // which is what makes the feed feel shuffled rather than fixed.
+  const [seed] = useState(() => Math.random().toString(36).slice(2, 12))
+
   const { data, isLoading, isError, error, refetch } = useShortsFeed({
     sort,
+    seed,
     start: videoId,
   })
   const shorts = useMemo(() => data?.results ?? [], [data])
@@ -127,7 +132,7 @@ export default function ShortsPage() {
           className="sv-input ml-auto w-auto py-1.5 text-xs"
           aria-label={t('shorts.sort')}
         >
-          {['recent', 'popular', 'liked', 'oldest'].map((value) => (
+          {['shuffle', 'recent', 'popular', 'liked', 'oldest'].map((value) => (
             <option key={value} value={value}>
               {t(`shorts.sortBy.${value}`)}
             </option>
@@ -184,12 +189,8 @@ export default function ShortsPage() {
         </div>
       </div>
 
-      <p className={cn('mt-3 w-[min(420px,92vw)] text-center text-xs text-ink-500')}>
-        {index + 1} / {shorts.length}
-      </p>
-
       {/* Same honesty as the subscriptions feed: no ranking model here either. */}
-      <p className="mt-2 flex w-[min(420px,92vw)] items-start gap-2 rounded-lg border border-ink-800 bg-ink-850 p-3 text-xs text-ink-400">
+      <p className="mt-3 flex w-[min(420px,92vw)] items-start gap-2 rounded-lg border border-ink-800 bg-ink-850 p-3 text-xs text-ink-400">
         <Info className="mt-0.5 size-3.5 shrink-0 text-brand-400" aria-hidden />
         {t('shorts.rankingNote')}
       </p>

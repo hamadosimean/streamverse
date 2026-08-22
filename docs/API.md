@@ -85,7 +85,7 @@ Access tokens are short-lived. Refresh tokens rotate on each use and are blackli
 | DELETE | `/api/videos/<uuid>/` | Owner/Staff | Delete video + all assets |
 | POST | `/api/videos/<uuid>/retry/` | Owner | Re-queue failed transcode |
 | POST | `/api/videos/<uuid>/visibility/` | Owner | Change visibility (public/unlisted/private) |
-| GET | `/api/shorts/` | Public | Paginated Shorts feed |
+| GET | `/api/shorts/` | Public | Paginated Shorts feed. `?sort=shuffle\|recent\|popular\|liked\|oldest` (default `shuffle`), `?seed=` to reproduce a shuffle, `?start=<uuid>` to pin one Short first |
 | GET | `/api/shorts/<uuid>/` | Public | Single Short detail |
 
 *Unlisted videos are accessible with a direct UUID link. Private videos require auth as owner or staff.
