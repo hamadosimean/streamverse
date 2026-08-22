@@ -12,23 +12,36 @@ x-backend-env: &backend-env
   DEBUG: ${DEBUG:-0}
   DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
   ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
-  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8110}
-  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8110}
-  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8110}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
+  FRONTEND_URL: ${FRONTEND_URL}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  TIME_ZONE: ${TIME_ZONE:-UTC}
+
+  JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES:-15}
+  JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS:-7}
+
+  # DRF scoped throttles. Empty values are not valid rate strings, so each one
+  # carries a default rather than being passed through bare.
+  THROTTLE_UPLOAD: ${THROTTLE_UPLOAD:-20/hour}
+  THROTTLE_AUTH: ${THROTTLE_AUTH:-30/hour}
+  THROTTLE_COMMENT: ${THROTTLE_COMMENT:-60/hour}
+  THROTTLE_LIVE_START: ${THROTTLE_LIVE_START:-10/hour}
+  THROTTLE_CHECKOUT: ${THROTTLE_CHECKOUT:-20/hour}
 
   # Public identity for sitemap.xml, robots.txt and Open Graph tags, which must
   # emit absolute URLs and have no request to derive them from.
   SITE_URL: ${SITE_URL:-http://localhost:8110}
   SITE_NAME: ${SITE_NAME:-StreamVerse}
+  SITE_DESCRIPTION: "${SITE_DESCRIPTION:-Partagez, decouvrez et diffusez des videos en direct sur StreamVerse.}"
   SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
   SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-0}
   SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
   CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-0}
 
-  POSTGRES_DB: ${POSTGRES_DB:-streamverse}
-  POSTGRES_USER: ${POSTGRES_USER:-streamverse}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-streamverse}
+  POSTGRES_DB: ${POSTGRES_DB}
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   POSTGRES_HOST: db
   POSTGRES_PORT: 5432
 
@@ -43,41 +56,50 @@ x-backend-env: &backend-env
   MINIO_PORT: 9000
   MINIO_ENDPOINT: http://minio:9000
   # Signed against the host the BROWSER uses — see apps/core/storage.py.
-  MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9010}
-  MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-streamverse}
-  MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-streamverse-secret}
-  MINIO_PUBLIC_BUCKET: ${MINIO_PUBLIC_BUCKET:-streamverse-public}
-  MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET:-streamverse-private}
+  MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
+  MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  MINIO_PUBLIC_BUCKET: ${MINIO_PUBLIC_BUCKET}
+  MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET}
+  # Lifetime of a presigned playback session for private content.
+  MINIO_PRESIGN_TTL_SECONDS: ${MINIO_PRESIGN_TTL_SECONDS:-21600}
 
   EMAIL_HOST: mailpit
   EMAIL_PORT: 1025
-  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@streamverse.local}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL}
 
   UPLOAD_SCRATCH_DIR: /data/uploads
   TRANSCODE_WORK_DIR: /data/work
-  FFMPEG_PRESET: ${FFMPEG_PRESET:-veryfast}
-  FFMPEG_VIDEO_ENCODER: ${FFMPEG_VIDEO_ENCODER:-libx264}
-  HLS_SEGMENT_SECONDS: ${HLS_SEGMENT_SECONDS:-4}
+  FFMPEG_PRESET: ${FFMPEG_PRESET}
+  FFMPEG_VIDEO_ENCODER: ${FFMPEG_VIDEO_ENCODER}
+  HLS_SEGMENT_SECONDS: ${HLS_SEGMENT_SECONDS}
+  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5368709120}
+  MAX_VIDEO_DURATION_SECONDS: ${MAX_VIDEO_DURATION_SECONDS:-14400}
+  UPLOAD_SESSION_TTL_HOURS: ${UPLOAD_SESSION_TTL_HOURS:-24}
 
-  LIVE_RTMP_APP: ${LIVE_RTMP_APP:-live}
+  LIVE_RTMP_APP: ${LIVE_RTMP_APP}
   LIVE_RTMP_PUBLIC_URL: ${LIVE_RTMP_PUBLIC_URL:-rtmp://localhost:1936}
   LIVE_HLS_PUBLIC_PATH: ${LIVE_HLS_PUBLIC_PATH:-/live-hls}
   LIVE_MEDIAMTX_API: http://mediamtx:9997
-  LIVE_HOOK_SECRET: ${LIVE_HOOK_SECRET:-change-me-live-hook-secret}
-  LIVE_RECORDINGS_DIR: /data/recordings
+  LIVE_HOOK_SECRET: ${LIVE_HOOK_SECRET}
+  LIVE_RECORDINGS_DIR: ${LIVE_RECORDINGS_DIR:-/data/recordings}
+  LIVE_RECORDING_SETTLE_SECONDS: ${LIVE_RECORDING_SETTLE_SECONDS:-20}
+  LIVE_RECORDING_RETENTION_DAYS: ${LIVE_RECORDING_RETENTION_DAYS:-7}
+  LIVE_CHAT_MIN_INTERVAL_SECONDS: ${LIVE_CHAT_MIN_INTERVAL_SECONDS:-1.0}
 
-  PAYMENTS_USE_MOCK: ${PAYMENTS_USE_MOCK:-1}
-  MOCK_PAYMENT_WEBHOOK_SECRET: ${MOCK_PAYMENT_WEBHOOK_SECRET:-change-me-mock-webhook-secret}
-  MOCK_PAYMENT_CONFIRM_DELAY_SECONDS: ${MOCK_PAYMENT_CONFIRM_DELAY_SECONDS:-8}
-  MOCK_PAYMENT_FAILURE_PERCENT: ${MOCK_PAYMENT_FAILURE_PERCENT:-15}
-  PAYMENT_PENDING_TIMEOUT_MINUTES: ${PAYMENT_PENDING_TIMEOUT_MINUTES:-30}
-  ADS_ENABLED: ${ADS_ENABLED:-1}
-  ADS_MIN_DURATION_FOR_MIDROLL: ${ADS_MIN_DURATION_FOR_MIDROLL:-120}
+  PAYMENTS_USE_MOCK: ${PAYMENTS_USE_MOCK}
+  MOCK_PAYMENT_WEBHOOK_SECRET: ${MOCK_PAYMENT_WEBHOOK_SECRET}
+  MOCK_PAYMENT_CONFIRM_DELAY_SECONDS: ${MOCK_PAYMENT_CONFIRM_DELAY_SECONDS}
+  MOCK_PAYMENT_FAILURE_PERCENT: ${MOCK_PAYMENT_FAILURE_PERCENT}
+  PAYMENT_PENDING_TIMEOUT_MINUTES: ${PAYMENT_PENDING_TIMEOUT_MINUTES}
+  RENEWAL_LEAD_HOURS: ${RENEWAL_LEAD_HOURS:-24}
+  ADS_ENABLED: ${ADS_ENABLED}
+  ADS_MIN_DURATION_FOR_MIDROLL: ${ADS_MIN_DURATION_FOR_MIDROLL}
   INTERNAL_API_BASE_URL: http://backend:8000
 
-  VIEW_MIN_SECONDS: ${VIEW_MIN_SECONDS:-30}
-  VIEW_DEDUP_WINDOW_SECONDS: ${VIEW_DEDUP_WINDOW_SECONDS:-43200}
-  SEARCH_LANGUAGE_CONFIG: ${SEARCH_LANGUAGE_CONFIG:-french}
+  VIEW_MIN_SECONDS: ${VIEW_MIN_SECONDS}
+  VIEW_DEDUP_WINDOW_SECONDS: ${VIEW_DEDUP_WINDOW_SECONDS}
+  SEARCH_LANGUAGE_CONFIG: ${SEARCH_LANGUAGE_CONFIG}
 
 x-backend-volumes: &backend-volumes
   - upload_scratch:/data/uploads
@@ -92,9 +114,9 @@ services:
     image: postgres:18-trixie
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-streamverse}
-      POSTGRES_USER: ${POSTGRES_USER:-streamverse}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-streamverse}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       # Postgres 18+ images expect the mount at /var/lib/postgresql (not
       # .../data) so the server can keep major-version-specific subdirectories
@@ -103,7 +125,7 @@ services:
     ports:
       - "${POSTGRES_HOST_PORT:-5459}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-streamverse} -d ${POSTGRES_DB:-streamverse}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -131,15 +153,19 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-streamverse}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-streamverse-secret}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     ports:
-      - "${MINIO_API_HOST_PORT:-9010}:9000"     # S3 API — the browser fetches HLS here
-      - "${MINIO_CONSOLE_HOST_PORT:-9011}:9001" # web console
+      - "${MINIO_API_HOST_PORT}:9000" # S3 API — the browser fetches HLS here
+      - "${MINIO_CONSOLE_HOST_PORT}:9001" # web console
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://localhost:9000/minio/health/live || exit 1",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -152,7 +178,7 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
     ports:
-      - "${MAILPIT_HOST_PORT:-8045}:8025"
+      - "${MAILPIT_HOST_PORT}:8025"
 
   backend:
     build:
@@ -170,11 +196,12 @@ services:
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
     volumes: *backend-volumes
     depends_on:
-      db: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      minio: {condition: service_healthy}
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/health/ || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -sf http://localhost:8000/api/health/ || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -190,12 +217,12 @@ services:
       <<: *backend-env
       # Transcoding is CPU-bound: match this to real cores, not to an arbitrary
       # number. See README "Performance & scaling".
-      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-2}
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY}
     volumes: *backend-volumes
     depends_on:
-      db: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      minio: {condition: service_healthy}
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
 
   celery-beat:
     build:
@@ -206,9 +233,9 @@ services:
     environment: *backend-env
     volumes: *backend-volumes
     depends_on:
-      db: {condition: service_healthy}
-      redis: {condition: service_healthy}
-      minio: {condition: service_healthy}
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
 
   flower:
     build:
@@ -223,7 +250,7 @@ services:
     ports:
       - "${FLOWER_HOST_PORT:-5574}:5555"
     depends_on:
-      redis: {condition: service_healthy}
+      redis: { condition: service_healthy }
 
   mediamtx:
     # RTMP ingest + HLS repackaging. The `-ffmpeg` variant is alpine-based, so it
@@ -233,14 +260,14 @@ services:
     restart: unless-stopped
     environment:
       # Substituted into the runOnReady / runOnNotReady commands.
-      MTX_HOOK_SECRET: ${LIVE_HOOK_SECRET:-change-me-live-hook-secret}
+      MTX_HOOK_SECRET: ${LIVE_HOOK_SECRET}
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
       - live_recordings:/recordings
     ports:
       # Only RTMP is published. HLS (:8888) is proxied by nginx and the control
       # API (:9997) stays internal.
-      - "${RTMP_HOST_PORT:-1936}:1935"
+      - "${RTMP_HOST_PORT}:1935"
     depends_on:
       - backend
 
@@ -248,8 +275,8 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-/ws}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL}
     restart: unless-stopped
     expose:
       - "80"
@@ -261,13 +288,13 @@ services:
       # The image runs envsubst over /etc/nginx/templates/*.template at start.
       # The FILTER is essential: without it envsubst would also eat nginx's own
       # $host, $request_uri and friends, leaving an empty config.
-      MINIO_PUBLIC_ENDPOINT: "${MINIO_PUBLIC_ENDPOINT:-http://localhost:9010}"
+      MINIO_PUBLIC_ENDPOINT: "${MINIO_PUBLIC_ENDPOINT}"
       NGINX_ENVSUBST_FILTER: "^MINIO_PUBLIC_ENDPOINT$$"
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - static:/var/www/static:ro
     ports:
-      - "${APP_HOST_PORT:-8110}:80"
+      - "${APP_HOST_PORT}:80"
     depends_on:
       - backend
       - frontend
@@ -276,8 +303,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  minio_data:      # replaces a local file volume — grows fast with multi-rendition HLS
+  minio_data: # replaces a local file volume — grows fast with multi-rendition HLS
   static:
-  upload_scratch:  # tus chunks + source files, shared between backend and worker
-  transcode_work:  # ffmpeg scratch space, swept by a beat task
+  upload_scratch: # tus chunks + source files, shared between backend and worker
+  transcode_work: # ffmpeg scratch space, swept by a beat task
   live_recordings: # MediaMTX session recordings, pruned once converted to VOD

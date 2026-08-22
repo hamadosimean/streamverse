@@ -1,7 +1,10 @@
 # Environment
+# Ignore every env file, then re-admit the documented template. `.env.prod`
+# holds a real secret key and database/object-store passwords.
 .env
-.env.local
+.env.*
 *.env.bak
+!.env.example
 
 # Python
 __pycache__/
@@ -33,3 +36,4 @@ npm-debug.log*
 # Local scratch (these live in docker volumes in normal use)
 data/
 *.part
+SESSION.text
