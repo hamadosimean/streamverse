@@ -9,6 +9,7 @@ rendition.
 Nothing here runs inline in a request — the web process only ever calls
 `start_transcoding_pipeline.delay(...)`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -100,7 +101,9 @@ def probe_source(video_id: str) -> str:
     Video.objects.filter(pk=video.pk).update(is_short=video.qualifies_as_short())
     video.refresh_from_db()
     progress.publish(
-        video, ProcessingStage.PROBING, 1.0,
+        video,
+        ProcessingStage.PROBING,
+        1.0,
         f"{result.resolution} - {int(result.duration_seconds)} s",
     )
     return str(video.pk)
@@ -116,8 +119,11 @@ def transcode_renditions(video_id: str) -> str:
     work = pipeline.work_dir(video)
 
     ladder = build_ladder(video.source_width, video.source_height)
-    logger.info("video %s ladder: %s", video.pk,
-                ", ".join(f"{r.label}({r.width}x{r.height})" for r in ladder))
+    logger.info(
+        "video %s ladder: %s",
+        video.pk,
+        ", ".join(f"{r.label}({r.width}x{r.height})" for r in ladder),
+    )
 
     # A retry must not leave stale renditions from the failed attempt.
     video.renditions.all().delete()
@@ -132,7 +138,9 @@ def transcode_renditions(video_id: str) -> str:
         def publish(fraction: float, _index=index, _rendition=rendition):
             overall = (_index + fraction) / total
             progress.publish(
-                video, ProcessingStage.TRANSCODING, overall,
+                video,
+                ProcessingStage.TRANSCODING,
+                overall,
                 f"{_rendition.label} ({_index + 1}/{total})",
             )
 
@@ -208,8 +216,9 @@ def build_master_playlist(video_id: str) -> str:
 
     Video.objects.filter(pk=video.pk).update(hls_master_path=master_key)
     video.refresh_from_db()
-    progress.publish(video, ProcessingStage.PACKAGING, 1.0,
-                     f"{len(renditions)} rendus disponibles")
+    progress.publish(
+        video, ProcessingStage.PACKAGING, 1.0, f"{len(renditions)} rendus disponibles"
+    )
     return str(video.pk)
 
 
@@ -219,7 +228,9 @@ def build_master_playlist(video_id: str) -> str:
 @shared_task(name="videos.transcode.generate_thumbnails")
 def generate_thumbnails(video_id: str) -> str:
     video = _load(video_id)
-    progress.publish(video, ProcessingStage.THUMBNAILS, 0.0, "Generation des miniatures")
+    progress.publish(
+        video, ProcessingStage.THUMBNAILS, 0.0, "Generation des miniatures"
+    )
 
     source = pipeline.ensure_local_source(video)
     work = pipeline.work_dir(video) / "thumbs"
@@ -237,8 +248,10 @@ def generate_thumbnails(video_id: str) -> str:
     progress.publish(video, ProcessingStage.THUMBNAILS, 0.4, "Poster genere")
 
     VideoThumbnail.objects.create(
-        video=video, timestamp_offset=poster_at,
-        image_path=f"{prefix}/poster.jpg", is_poster=True,
+        video=video,
+        timestamp_offset=poster_at,
+        image_path=f"{prefix}/poster.jpg",
+        is_poster=True,
     )
 
     # Scrubbing previews as one sprite sheet.
@@ -247,10 +260,15 @@ def generate_thumbnails(video_id: str) -> str:
     storage.upload_file(sprite_file, bucket, f"{prefix}/sprite.jpg")
     progress.publish(video, ProcessingStage.THUMBNAILS, 0.8, "Planche de miniatures")
 
-    vtt_text = packaging.build_thumbnail_vtt("sprite.jpg", geometry,
-                                             video.duration_seconds)
-    storage.upload_bytes(vtt_text.encode("utf-8"), bucket,
-                         f"{prefix}/thumbnails.vtt", content_type="text/vtt")
+    vtt_text = packaging.build_thumbnail_vtt(
+        "sprite.jpg", geometry, video.duration_seconds
+    )
+    storage.upload_bytes(
+        vtt_text.encode("utf-8"),
+        bucket,
+        f"{prefix}/thumbnails.vtt",
+        content_type="text/vtt",
+    )
 
     VideoThumbnail.objects.bulk_create(
         [
@@ -259,7 +277,10 @@ def generate_thumbnails(video_id: str) -> str:
                 timestamp_offset=timestamp,
                 image_path=f"{prefix}/sprite.jpg",
                 is_poster=False,
-                sprite_x=x, sprite_y=y, sprite_width=w, sprite_height=h,
+                sprite_x=x,
+                sprite_y=y,
+                sprite_width=w,
+                sprite_height=h,
             )
             for timestamp, x, y, w, h in packaging.sprite_tile_positions(
                 geometry, video.duration_seconds
@@ -274,8 +295,9 @@ def generate_thumbnails(video_id: str) -> str:
         sprite_meta=geometry,
     )
     video.refresh_from_db()
-    progress.publish(video, ProcessingStage.THUMBNAILS, 1.0,
-                     f"{geometry['tiles']} miniatures")
+    progress.publish(
+        video, ProcessingStage.THUMBNAILS, 1.0, f"{geometry['tiles']} miniatures"
+    )
     return str(video.pk)
 
 
@@ -299,7 +321,9 @@ def finalize_video(video_id: str) -> str:
         if not storage.object_exists(video.storage_bucket, rendition.hls_playlist_path):
             missing.append(f"manifeste {rendition.label}")
     if missing:
-        raise RuntimeError("Elements manquants apres transcodage: " + ", ".join(missing))
+        raise RuntimeError(
+            "Elements manquants apres transcodage: " + ", ".join(missing)
+        )
 
     with transaction.atomic():
         video.status = VideoStatus.READY
@@ -308,8 +332,16 @@ def finalize_video(video_id: str) -> str:
         video.failure_reason = ""
         if video.published_at is None:
             video.published_at = timezone.now()
-        video.save(update_fields=["status", "processing_stage", "processing_progress",
-                                  "failure_reason", "published_at", "updated_at"])
+        video.save(
+            update_fields=[
+                "status",
+                "processing_stage",
+                "processing_progress",
+                "failure_reason",
+                "published_at",
+                "updated_at",
+            ]
+        )
         UploadSession.objects.filter(video=video).update(status=UploadStatus.COMPLETED)
 
     # Index it the moment it becomes findable, not at the next beat tick.
@@ -374,8 +406,9 @@ def relocate_assets(video_id: str) -> str:
 
     moved = storage.move_prefix(current, target, video.asset_prefix)
     Video.objects.filter(pk=video.pk).update(storage_bucket=target)
-    logger.info("Relocated %d objects for video %s: %s -> %s",
-                moved, video.pk, current, target)
+    logger.info(
+        "Relocated %d objects for video %s: %s -> %s", moved, video.pk, current, target
+    )
     return str(video.pk)
 
 
@@ -388,8 +421,9 @@ def delete_video_assets(video_id: str, asset_prefix: str) -> None:
             storage.delete_prefix(bucket, asset_prefix)
             storage.delete_prefix(bucket, f"originals/{video_id}/")
         except Exception:
-            logger.warning("Could not purge %s from %s", asset_prefix, bucket,
-                           exc_info=True)
+            logger.warning(
+                "Could not purge %s from %s", asset_prefix, bucket, exc_info=True
+            )
 
 
 # --------------------------------------------------------------------------
@@ -412,11 +446,13 @@ def cleanup_abandoned_uploads() -> dict:
             path.unlink(missing_ok=True)
         removed += 1
 
-    stale.update(status=UploadStatus.EXPIRED,
-                 error="Session expiree sans televersement complet.")
+    stale.update(
+        status=UploadStatus.EXPIRED, error="Session expiree sans televersement complet."
+    )
     if removed:
-        logger.info("Swept %d abandoned uploads (%.1f MiB freed)", removed,
-                    freed / (1024 ** 2))
+        logger.info(
+            "Swept %d abandoned uploads (%.1f MiB freed)", removed, freed / (1024**2)
+        )
     return {"sessions_expired": removed, "bytes_freed": freed}
 
 
@@ -432,9 +468,10 @@ def cleanup_stale_workdirs() -> dict:
         return {"removed": 0}
 
     active = set(
-        str(pk) for pk in Video.objects.filter(
-            status=VideoStatus.PROCESSING
-        ).values_list("pk", flat=True)
+        str(pk)
+        for pk in Video.objects.filter(status=VideoStatus.PROCESSING).values_list(
+            "pk", flat=True
+        )
     )
 
     removed = 0
