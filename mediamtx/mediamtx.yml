@@ -1,13 +1,29 @@
-# MediaMTX — RTMP ingest and HLS repackaging for StreamVerse live streaming.
+# MediaMTX — RTMP + WebRTC ingest and HLS repackaging for StreamVerse live.
 #
 # Chosen over nginx-rtmp-module deliberately: arut/nginx-rtmp-module has had no
 # release in years and does not build cleanly against current Nginx, whereas
 # MediaMTX is actively maintained, repackages RTMP to HLS natively, records
 # without an external process, and exposes HTTP hooks we can point at Django.
 #
+# TWO INGEST PATHS, ONE OUTPUT:
+#
+#   OBS / ffmpeg ──RTMP──────────────────────────► live/<slug> ──► HLS ──► viewer
+#   browser ──WHIP──► webrtc/<slug> ──ffmpeg──► live/<slug> ──► HLS ──► viewer
+#
+# The browser leg exists because a browser cannot send AAC: WebRTC audio is
+# always Opus, and MPEG-TS HLS — what every viewer plays — cannot carry Opus.
+# Rather than move the whole platform to fMP4 HLS (which iOS Safari will not
+# play with Opus audio), a per-broadcast ffmpeg copies the H264 video through
+# untouched and re-encodes only the audio. Downstream, a browser broadcast is
+# indistinguishable from an OBS one: same path, same auth, same recording, same
+# VOD conversion. See mediamtx/bridge.sh.
+#
 # Ports inside the container:
 #   1935  RTMP ingest        (published on the host as 1936)
+#   8554  RTSP               (NOT published — the bridge's internal read hop)
 #   8888  HLS output         (not published — nginx proxies it at /live-hls/)
+#   8889  WebRTC/WHIP        (not published — nginx proxies it at /live-webrtc/)
+#   8189  WebRTC ICE/UDP     (published — media flows browser -> here directly)
 #   9997  control API        (not published — internal reconciliation only)
 
 logLevel: info
@@ -67,16 +83,49 @@ hlsSegmentCount: 7
 hlsSegmentDuration: 2s
 hlsPartDuration: 200ms
 hlsSegmentMaxSize: 50M
-# Keep repackaging even with no viewers, so the first viewer to arrive does not
-# wait for a fresh playlist to be built.
-hlsAlwaysRemux: yes
+# Muxers are built on demand, not kept warm for every available path.
+#
+# Keeping them warm (`yes`) saves the first viewer of a broadcast the couple of
+# seconds it takes to build a playlist — but it builds one for EVERY path, and
+# the browser-ingest staging path carries Opus audio, which the MPEG-TS variant
+# below cannot mux. That produced a muxer that crashed and was retried every
+# twenty seconds for the whole broadcast: a log full of errors describing a
+# stream nobody ever asked to play. On demand, the impossible muxer is simply
+# never created, and only the bridged output (H264 + AAC) is ever muxed.
+hlsAlwaysRemux: no
 # nginx is the only origin that talks to MediaMTX; it adds its own CORS headers.
 hlsAllowOrigins: ['*']
 hlsTrustedProxies: []
 
-rtsp: no
+# RTSP is enabled but never published on the host. It is the transport the
+# bridge reads the browser's stream over: RTMP cannot carry Opus, and HLS would
+# add the very latency the bridge exists to avoid.
+rtsp: yes
+rtspAddress: :8554
+rtspTransports: [tcp]
+rtspEncryption: "no"
+
 srt: no
-webrtc: no
+
+# WebRTC ingest (WHIP) — how a phone or a laptop goes live without OBS.
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: false
+# The signalling handshake is proxied same-origin by nginx at /live-webrtc/, so
+# no browser origin talks to this port directly.
+webrtcAllowOrigins: ['*']
+webrtcTrustedProxies: []
+# Media itself does NOT go through nginx: it is UDP straight from the browser to
+# this listener, which is why 8189/udp is the one MediaMTX port published on the
+# host alongside RTMP.
+webrtcLocalUDPAddress: :8189
+webrtcIPsFromInterfaces: yes
+# Container interface IPs are useless to a browser on another machine. The host
+# that browsers can actually reach is injected as MTX_WEBRTCADDITIONALHOSTS by
+# docker-compose (LIVE_WEBRTC_HOST) — set it to the public hostname or IP for
+# any deployment that is not localhost.
+webrtcAdditionalHosts: []
+
 # Not needed for this topology; leaving it off avoids generating a TLS cert
 # and binding three more ports at boot.
 moq: no
@@ -120,4 +169,25 @@ pathDefaults:
     http://backend:8000/api/live/hooks/not-ready/
 
 paths:
+  # Browser ingest. Everything here is overridden away from the defaults above:
+  # this path is a staging area, not a broadcast.
+  #
+  #   record: no      — the bridge republishes to live/<slug>, which records.
+  #                     Recording here too would write every session twice.
+  #   runOnAvailable  — the bridge, not the Django hook. The channel goes live
+  #                     when the *bridged* stream reaches live/<slug>, so that
+  #                     viewers are never pointed at a path with no HLS output.
+  #   restart: yes    — a transient ffmpeg failure should not silently end a
+  #                     broadcast that is still being published.
+  '~^webrtc/(.+)$':
+    source: publisher
+    record: no
+    runOnAvailable: sh /bridge.sh
+    runOnAvailableRestart: yes
+    # Empty, not inherited: the session lifecycle belongs to `live/<slug>` at
+    # both ends. Left to the default, this path would tell Django the broadcast
+    # had ended while the bridge was still pushing its last second of video into
+    # the path that viewers are actually watching.
+    runOnUnavailable: ""
+
   all_others:

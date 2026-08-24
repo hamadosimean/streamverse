@@ -11,6 +11,7 @@ from apps.live.views import (
     MyLiveChannelView,
     MyLiveSessionsView,
     RotateStreamKeyView,
+    WebRTCPublishTicketView,
 )
 
 app_name = "live"
@@ -27,6 +28,8 @@ urlpatterns = [
     # --- Owner ---------------------------------------------------------------
     path("live/me/", MyLiveChannelView.as_view(), name="my-channel"),
     path("live/me/rotate-key/", RotateStreamKeyView.as_view(), name="rotate-key"),
+    path("live/me/webrtc-ticket/", WebRTCPublishTicketView.as_view(),
+         name="webrtc-ticket"),
     path("live/me/sessions/", MyLiveSessionsView.as_view(), name="my-sessions"),
 
     # --- Public --------------------------------------------------------------

@@ -169,7 +169,7 @@ streamverse/
 │       │                    monetization, moderation, library, admin
 │       ├── stores/          zustand: auth, ui, player, upload queue
 │       └── lib/             api (axios + JWT refresh), i18n, format
-├── mediamtx/                RTMP ingest + HLS repackaging config
+├── mediamtx/                RTMP + WebRTC ingest, HLS repackaging, bridge.sh
 ├── nginx/                   edge reverse proxy
 ├── docker-compose.yml
 ├── .env.example
@@ -387,22 +387,33 @@ Both images are optional. With none uploaded the channel header falls back to th
 
 ## Live streaming
 
+Two ways in, one way out. A phone or a laptop goes live from the browser with
+nothing installed; OBS still publishes over RTMP for anyone with a real setup.
+Both land on the same path, so everything downstream — HLS, chat, recording,
+the VOD conversion — cannot tell them apart.
+
 ```
-  OBS / ffmpeg
-       │  RTMP  rtmp://localhost:1936/live
-       │  Stream Key: <slug>?key=<secret>
-       ▼
-  ┌─────────────────────────────────────────────┐
-  │  MediaMTX 1.20                              │
-  │   :1935 RTMP in                             │      ┌──────────────┐
-  │   :8888 HLS out ──────────────────────────► │ ───► │ nginx        │ ──► viewer
-  │   :9997 control API                         │      │ /live-hls/   │
-  │                                             │      └──────────────┘
-  │   auth hook ──────► Django: validate key    │
-  │   runOnAvailable ─► Django: session opens   │
-  │   runOnUnavailable► Django: session closes  │
-  │   record ─────────► fMP4 on shared volume   │
-  └──────────────────────────┬──────────────────┘
+  OBS / ffmpeg                          browser (phone or computer)
+       │  RTMP  rtmp://localhost:1936/live     │  WHIP  /live-webrtc/webrtc/<slug>/whip
+       │  Stream Key: <slug>?key=<secret>      │  short-lived publish ticket
+       │                                       │  H264 + Opus, media over UDP :8189
+       ▼                                       ▼
+  ┌──────────────────────────────────────────────────────────┐
+  │  MediaMTX 1.20                                           │
+  │                                     webrtc/<slug>        │
+  │                                          │  ffmpeg bridge│
+  │                                          │  audio → AAC  │
+  │   :1935 RTMP in                          │  video copied │
+  │   :8889 WHIP in                          ▼               │
+  │   :8189 WebRTC media (UDP)          live/<slug>          │   ┌──────────────┐
+  │   :8888 HLS out ────────────────────────────────────────►│──►│ nginx        │──► viewer
+  │   :9997 control API                                      │   │ /live-hls/   │
+  │                                                          │   └──────────────┘
+  │   auth hook ──────► Django: validate key / ticket        │
+  │   runOnAvailable ─► Django: session opens                │
+  │   runOnUnavailable► Django: session closes               │
+  │   record ─────────► fMP4 on shared volume                │
+  └──────────────────────────┬───────────────────────────────┘
                              │  Celery
                              ▼
                    the SAME VOD pipeline as an upload
@@ -411,6 +422,44 @@ Both images are optional. With none uploaded the channel header falls back to th
                              ▼
                      a normal, private Video
 ```
+
+### Going live from a phone or a laptop
+
+**Studio → Mon direct → Diffuser depuis cet appareil.** Pick camera or screen,
+check the preview, press *Passer en direct*. No stream key, no OBS, no install.
+On a phone the front/back camera toggle is there too.
+
+Under it, three things are worth knowing.
+
+**The browser publishes to a staging path, not to the broadcast path.** A
+browser can only send Opus audio over WebRTC, and the MPEG-TS HLS every viewer
+plays cannot carry Opus. So `webrtc/<slug>` is bridged into `live/<slug>` by an
+ffmpeg that re-encodes *only the audio* — the H264 video is copied through
+frame-for-frame. That is one audio encode per broadcast; a video transcode would
+cost roughly fifty times as much. The alternative, moving the whole platform to
+fMP4 HLS, would have broken audio on every iPhone in the audience.
+
+The channel flips to `live` when the **bridged** stream arrives, never when the
+browser connects — so viewers are never pointed at a path that has no playlist
+yet. `mediamtx/bridge.sh` is the whole bridge, comments included.
+
+**H264 is required of the browser, not merely preferred.** The WHIP client
+filters its codec preferences down to H264 and fails loudly if the browser has
+none, because a VP8 offer would silently turn the cheap audio-only bridge into a
+full transcode. Every current Chrome, Edge, Safari and Firefox can send H264.
+
+**The camera is authorised by a ticket, not by the stream key.** Pressing *go
+live* mints a credential that is bound to one channel and expires in five
+minutes (`LIVE_WHIP_TICKET_TTL_SECONDS`). The permanent stream key never reaches
+the browser, never lands in a URL, and never appears in MediaMTX's access log.
+The OBS path still uses the key — it has no way to hold a ticket.
+
+> **HTTPS is not optional for this.** Browsers only grant camera and microphone
+> access in a secure context, which means HTTPS or `localhost`. Reached over
+> plain HTTP on a LAN address, a phone reports no camera at all — the studio
+> detects this and says so rather than letting it look like a broken device.
+> `LIVE_WEBRTC_HOST` must also name a host the *browser* can reach, or ICE never
+> connects.
 
 ### The path/key split
 
@@ -451,7 +500,12 @@ The result is created **private**. A stream that captured something the broadcas
 
 ## Testing live streaming with OBS or ffmpeg
 
-A live stream cannot be seeded — it needs a real RTMP push. The seed provisions the channel and key so this works immediately.
+A live stream cannot be seeded — it needs a real push. The seed provisions the channel and key so this works immediately.
+
+**The quickest test needs neither OBS nor ffmpeg:** open
+http://localhost:8110/studio/live, press *Activer la camera*, then *Passer en
+direct*, and watch yourself at http://localhost:8110/live/&lt;your-slug&gt;. That
+exercises the WebRTC path. The RTMP instructions below exercise the other one.
 
 **Demo credentials** (owner: `fatou@streamverse.local`):
 
@@ -474,6 +528,37 @@ ffmpeg -re \
 ```
 
 Then open **http://localhost:8110/live/fatou**. Within a few seconds the channel flips to `live`, the player starts, and the viewer count reflects everyone on the page.
+
+### Browser ingest, without a browser
+
+ffmpeg 7.1+ can speak WHIP, which is a way to exercise the whole WebRTC path —
+ticket, bridge, HLS — on a machine with no camera. Mint a ticket first:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8110/api/auth/jwt/create/ \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"fatou@streamverse.local","password":"StreamVerse2026!"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access"])')
+
+WHIP=$(curl -s -X POST http://localhost:8110/api/live/me/webrtc-ticket/ \
+  -H "Authorization: Bearer $TOKEN" \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["publish_url"])')
+
+ffmpeg -re \
+  -f lavfi -i "testsrc2=size=1280x720:rate=30" \
+  -f lavfi -i "sine=sample_rate=48000" \
+  -c:v libx264 -preset ultrafast -pix_fmt yuv420p -g 60 \
+  -c:a libopus -ar 48000 -ac 2 \
+  -f whip "http://localhost:8110${WHIP}"
+```
+
+Note the codecs: **H264 and Opus**, exactly what a browser sends. The ffmpeg
+inside the MediaMTX container can run this too, which is how the path is tested
+from a host that has no ffmpeg of its own:
+
+```bash
+docker compose exec mediamtx sh -c "ffmpeg ... -f whip 'http://nginx${WHIP}'"
+```
 
 ### With OBS
 
@@ -935,6 +1020,7 @@ Deliberately non-default so this stack can share a server with other projects.
 | MinIO S3 API | **9010** | the browser fetches HLS from here |
 | MinIO console | 9011 | |
 | RTMP ingest (MediaMTX) | **1936** | OBS publishes here |
+| WebRTC media (MediaMTX) | **8189/udp** | browser broadcasts land here. UDP, and it cannot be proxied — the WHIP handshake goes through nginx, the media does not |
 
 ---
 
@@ -1100,7 +1186,7 @@ generates cleanly with no drf-spectacular warnings.
 | 1 | Foundation — accounts, roles, catalogue, dashboards | ✅ **in this build** |
 | 2 | Video upload & transcoding pipeline, adaptive playback | ✅ **in this build** |
 | 3 | Engagement & search — views, likes, comments, reports, PostgreSQL full-text search, related videos, channel pages | ✅ **in this build** |
-| 4 | Live streaming — MediaMTX RTMP ingest, HLS live playback, live chat, recording→VOD | ✅ **in this build** |
+| 4 | Live streaming — RTMP *and* in-browser WebRTC ingest, HLS live playback, live chat, recording→VOD | ✅ **in this build** |
 | 5 | Monetization — mock payment provider, subscriptions, first-party ad rotation | ✅ **in this build** |
 | 6 | Moderation, admin dashboards, polish | ✅ **in this build** |
 | 7 | Real payment provider integration | ⬜ blocked on merchant credentials — see [Monetization](#monetization) |

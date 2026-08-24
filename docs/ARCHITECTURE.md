@@ -242,12 +242,21 @@ VideoRendition rows, VideoThumbnail rows
 
 ### 5.2 Live Streaming
 
+Two ingest paths converge on one broadcast path, so everything downstream —
+HLS, chat, recording, VOD conversion — has a single case to handle.
+
 ```
-OBS/encoder
+OBS/encoder                             browser (phone or laptop)
   │  RTMP  rtmp://host:1936/live/<slug>?key=<secret>
-  ▼
-MediaMTX :1935
-  ├─ AUTH hook   GET  /api/live/auth/              Django validates stream key
+  │                                       │  WHIP  POST /live-webrtc/webrtc/<slug>/whip?key=<ticket>
+  │                                       │        (nginx proxies signalling; media is UDP :8189)
+  │                                       ▼
+  │                                 MediaMTX path webrtc/<slug>
+  │                                       │  runOnAvailable: bridge.sh
+  │                                       │  ffmpeg: video copied, Opus → AAC
+  ▼                                       ▼
+MediaMTX path live/<slug>  ◄──────────────┘  (RTMP to 127.0.0.1, bridge credential)
+  ├─ AUTH hook   POST /api/live/auth/              Django: stream key | ticket | bridge
   ├─ READY hook  POST /api/live/hooks/ready/       Django: status=live, LiveRecording created
   ├─ HLS output  :8888/live/<slug>/                proxied by nginx at /live-hls/
   │                                                nginx auth_request on every playlist
@@ -256,6 +265,13 @@ MediaMTX :1935
                                                        → VOD pipeline on fMP4
                                                        → creates normal Video row
 ```
+
+The bridge exists for one reason: WebRTC audio is always Opus, and the MPEG-TS
+HLS variant every viewer plays cannot carry it. Re-encoding the audio costs a
+fraction of a core per broadcast; moving the platform to fMP4 HLS instead would
+have cost audio on every iPhone in the audience. The staging path drives neither
+end of the session lifecycle — the channel goes live, and offline, on the
+bridged stream, so viewers are never pointed at a path with no playlist.
 
 ### 5.3 Object Storage Layout
 

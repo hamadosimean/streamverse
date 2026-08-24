@@ -91,6 +91,9 @@ x-backend-env: &backend-env
   LIVE_RECORDING_SETTLE_SECONDS: ${LIVE_RECORDING_SETTLE_SECONDS:-20}
   LIVE_RECORDING_RETENTION_DAYS: ${LIVE_RECORDING_RETENTION_DAYS:-7}
   LIVE_CHAT_MIN_INTERVAL_SECONDS: ${LIVE_CHAT_MIN_INTERVAL_SECONDS:-1.0}
+  LIVE_WEBRTC_APP: ${LIVE_WEBRTC_APP:-webrtc}
+  LIVE_WEBRTC_PUBLIC_PATH: ${LIVE_WEBRTC_PUBLIC_PATH:-/live-webrtc}
+  LIVE_WHIP_TICKET_TTL_SECONDS: ${LIVE_WHIP_TICKET_TTL_SECONDS:-300}
 
   PAYMENTS_USE_MOCK: ${PAYMENTS_USE_MOCK}
   MOCK_PAYMENT_WEBHOOK_SECRET: ${MOCK_PAYMENT_WEBHOOK_SECRET}
@@ -258,21 +261,31 @@ services:
       redis: { condition: service_healthy }
 
   mediamtx:
-    # RTMP ingest + HLS repackaging. The `-ffmpeg` variant is alpine-based, so it
-    # has the shell and `wget` the lifecycle hooks need; the default image is
-    # scratch-based and cannot run them.
+    # RTMP + WebRTC ingest and HLS repackaging. The `-ffmpeg` variant is
+    # alpine-based, so it has the shell and `wget` the lifecycle hooks need and
+    # the ffmpeg the browser-ingest bridge runs; the default image is
+    # scratch-based and cannot run any of them.
     image: bluenviron/mediamtx:1.20.0-ffmpeg
     restart: unless-stopped
     environment:
-      # Substituted into the runOnReady / runOnNotReady commands.
+      # Substituted into the runOnReady / runOnNotReady commands, and used by
+      # bridge.sh as its publish credential.
       MTX_HOOK_SECRET: ${LIVE_HOOK_SECRET}
+      # The host a *browser* can reach this server on. Container interface IPs
+      # are gathered automatically and are useless off-host, so ICE would stall
+      # without this on any deployment that is not localhost.
+      MTX_WEBRTCADDITIONALHOSTS: ${LIVE_WEBRTC_HOST:-localhost}
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+      - ./mediamtx/bridge.sh:/bridge.sh:ro
       - live_recordings:/recordings
     ports:
-      # Only RTMP is published. HLS (:8888) is proxied by nginx and the control
-      # API (:9997) stays internal.
+      # RTMP, and the WebRTC media port. HLS (:8888), WHIP signalling (:8889)
+      # and the control API (:9997) stay internal — nginx proxies the first two
+      # same-origin. WebRTC media cannot be proxied: it is UDP straight from the
+      # browser to this listener.
       - "${RTMP_HOST_PORT}:1935"
+      - "${WEBRTC_UDP_HOST_PORT:-8189}:8189/udp"
     depends_on:
       - backend
 

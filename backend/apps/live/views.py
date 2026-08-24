@@ -75,8 +75,17 @@ class MediaMTXAuthView(APIView):
 
         try:
             if action == "publish":
-                supplied = (parse_qs(data.get("query") or "").get("key") or [""])[0]
-                channel = services.authorise_publish(path, supplied)
+                query = parse_qs(data.get("query") or "")
+                supplied = (query.get("key") or [""])[0]
+                # WHIP can also carry the credential as the WebRTC password
+                # rather than in the query string, depending on how the client
+                # builds the URL; accept either.
+                supplied = supplied or data.get("password") or ""
+                channel = services.authorise_publish(
+                    path, supplied,
+                    is_bridge=(query.get("bridge") or [""])[0] == "1",
+                    ip=data.get("ip") or "",
+                )
                 logger.info("live auth: publish allowed for %s from %s",
                             channel.slug, data.get("ip"))
             else:
@@ -284,6 +293,47 @@ class MyLiveChannelView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+@extend_schema(tags=["live"])
+class WebRTCPublishTicketView(APIView):
+    """Mint a short-lived credential for going live from this browser.
+
+    The studio calls this immediately before publishing, so the phone or laptop
+    never handles the channel's permanent stream key: the key would otherwise
+    end up in a WHIP URL, in MediaMTX's access log, and in the browser's
+    history — for a credential that does not expire.
+
+    Refusing while already live is a courtesy, not the enforcement: MediaMTX
+    rejects a second publisher on a path anyway, but it does so after the camera
+    is running, which reads as a bug rather than as an answer.
+    """
+
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "live_start"
+
+    @extend_schema(request=None, responses={200: dict})
+    def post(self, request):
+        channel = LiveChannel.objects.filter(user=request.user).first()
+        if channel is None:
+            raise ValidationError({"detail": "Aucune chaine en direct configuree."})
+        if not channel.is_enabled:
+            raise PermissionDenied("Diffusion desactivee pour cette chaine.")
+        if channel.is_live:
+            raise ValidationError(
+                {"detail": "Cette chaine diffuse deja. Arretez le direct en cours "
+                           "avant d'en demarrer un autre."}
+            )
+
+        token, ttl = services.issue_publish_ticket(channel)
+        # No ICE servers are handed out here: the media host is reachable
+        # directly, and a deployment that needs STUN/TURN configures it in
+        # MediaMTX (`webrtcICEServers2`), which is where the WHIP spec expects
+        # a client to learn about it.
+        return Response({
+            "publish_url": services.whip_url(channel, token),
+            "expires_in": ttl,
+        })
 
 
 @extend_schema(tags=["live"])

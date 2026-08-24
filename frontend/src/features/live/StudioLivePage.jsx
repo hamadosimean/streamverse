@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom'
 
 import StatusBadge from '@/components/StatusBadge'
 import { Badge, Button, Field, LoadingBlock, Modal } from '@/components/ui'
+import GoLivePanel from '@/features/live/GoLivePanel'
 import { apiErrorMessage } from '@/lib/api'
 import { formatBytes, formatDuration, formatRelative } from '@/lib/format'
 import { categoryLabel } from '@/lib/i18n'
@@ -139,6 +140,12 @@ export default function StudioLivePage() {
           )}
         </div>
       </header>
+
+      {/* Broadcasting from this device is the path most people want, so it
+          leads; OBS keeps its section below for anyone with a real setup. */}
+      {channel.can_broadcast_from_browser && (
+        <GoLivePanel channel={channel} onStatusChange={() => channelQuery.refetch()} />
+      )}
 
       {/* ---------------------------------------------------- OBS settings */}
       <section className="sv-card mb-5 p-5">

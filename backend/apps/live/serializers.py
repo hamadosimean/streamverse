@@ -52,12 +52,14 @@ class OwnerLiveChannelSerializer(serializers.ModelSerializer):
     playback_url = serializers.SerializerMethodField()
     ingest_url = serializers.SerializerMethodField()
     obs_stream_key = serializers.SerializerMethodField()
+    can_broadcast_from_browser = serializers.SerializerMethodField()
 
     class Meta:
         model = LiveChannel
         fields = ("slug", "title", "description", "category_slug", "status",
                   "stream_key", "stream_key_rotated_at", "ingest_url",
-                  "obs_stream_key", "playback_url", "started_at", "ended_at",
+                  "obs_stream_key", "can_broadcast_from_browser",
+                  "playback_url", "started_at", "ended_at",
                   "current_viewer_count", "peak_viewer_count",
                   "all_time_peak_viewers", "total_sessions", "chat_enabled",
                   "record_sessions", "is_enabled")
@@ -72,6 +74,14 @@ class OwnerLiveChannelSerializer(serializers.ModelSerializer):
     def get_ingest_url(self, obj) -> str:
         """What goes in OBS's *Server* field."""
         return f"{settings.LIVE_RTMP_PUBLIC_URL}/{settings.LIVE_RTMP_APP}"
+
+    def get_can_broadcast_from_browser(self, obj) -> bool:
+        """Whether the studio should offer the camera panel at all.
+
+        No publish URL is handed out here: that needs a ticket, which is minted
+        only when the user actually presses *go live*.
+        """
+        return bool(obj.is_enabled and not obj.user.is_suspended)
 
     def get_obs_stream_key(self, obj) -> str:
         """What goes in OBS's *Stream Key* field.

@@ -250,25 +250,58 @@ Results are ranked by `ts_rank` on the weighted tsvector field (title > tags > d
 |---|---|---|---|
 | GET | `/api/live/` | Public | List of currently live channels |
 | GET | `/api/live/<slug>/` | Public | Channel detail + HLS URL |
-| GET | `/api/live/<slug>/chat/history/` | Public | Recent chat messages (backlog) |
+| GET | `/api/live/<slug>/chat/` | Public | Recent chat messages (backlog) |
 
 #### Creator endpoints
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/api/live/my-channel/` | Auth | Own channel details + stream key |
-| PATCH | `/api/live/my-channel/` | Auth | Update title, description, category |
-| POST | `/api/live/my-channel/rotate-key/` | Auth | Rotate stream key |
+| GET | `/api/live/me/` | Auth | Own channel details + stream key |
+| PATCH | `/api/live/me/` | Auth | Update title, description, category, chat and recording switches |
+| POST | `/api/live/me/rotate-key/` | Auth | Rotate stream key (refused while live) |
+| POST | `/api/live/me/webrtc-ticket/` | Auth | Mint a browser publish ticket |
+| GET | `/api/live/me/sessions/` | Auth | Past broadcasts and their recordings |
+
+#### Going live from the browser
+
+`POST /api/live/me/webrtc-ticket/` returns where to publish and for how long:
+
+```json
+{ "publish_url": "/live-webrtc/webrtc/fatou/whip?key=<ticket>", "expires_in": 300 }
+```
+
+The client then speaks [WHIP](https://www.rfc-editor.org/rfc/rfc9725.html) to
+that URL: `POST` an SDP offer, `DELETE` the returned `Location` to hang up. Two
+requirements the server will not negotiate around:
+
+* **H264 video.** The bridge copies the video track through without re-encoding
+  it, so a VP8 offer would turn a cheap audio-only bridge into a full transcode.
+  The client filters its codec preferences to H264 and fails loudly if the
+  browser has none.
+* **A ticket, not the stream key.** It is bound to one channel, expires in
+  `LIVE_WHIP_TICKET_TTL_SECONDS`, and is refused while the channel is already
+  live. The permanent key stays out of the browser entirely.
+
+`can_broadcast_from_browser` on the owner's channel says whether to offer the
+panel at all; no publish URL is exposed until the user actually goes live.
 
 #### MediaMTX internal hooks (not browser-facing)
 
-Protected by `X-Live-Hook-Secret` header. nginx returns 404 for these paths at the edge.
+The hooks are protected by an `X-Live-Hook-Secret` header; the auth endpoint
+cannot carry one and relies on network isolation. nginx returns 404 for all of
+these paths at the edge.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/live/auth/` | RTMP publish authentication |
+| POST | `/api/live/auth/` | Publish authorisation — stream key, browser ticket, or the bridge |
+| GET | `/api/live/authz/` | Playlist authorisation, called by nginx `auth_request` |
 | POST | `/api/live/hooks/ready/` | Stream went live |
 | POST | `/api/live/hooks/not-ready/` | Stream ended |
+
+A publish is accepted on three credentials: the channel's **stream key** (OBS),
+a **browser ticket**, or the **hook secret** — the last only for the in-container
+ffmpeg bridge, and only from loopback, so reading the secret out of a config
+file does not let anyone publish as any channel.
 
 ---
 

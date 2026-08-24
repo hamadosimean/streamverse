@@ -343,6 +343,27 @@ could declare itself a Short to jump into the full-screen feed.
 | `LIVE_RECORDING_SETTLE_SECONDS` | `20` | ✅ | Grace period before touching a recording — MediaMTX is still flushing when the hook fires. |
 | `LIVE_RECORDING_RETENTION_DAYS` | `7` | ✅ | Raw recordings deleted this long after conversion to VOD. |
 | `LIVE_CHAT_MIN_INTERVAL_SECONDS` | `1.0` | ✅ | Per-socket message spacing. DRF throttles never see a WebSocket frame, so the consumer enforces this itself. |
+| `LIVE_WEBRTC_APP` | `webrtc` | ✅ | Staging path segment for browser ingest, bridged to `<LIVE_RTMP_APP>/<slug>`. |
+| `LIVE_WEBRTC_PUBLIC_PATH` | `/live-webrtc` | ✅ | Same-origin path where nginx proxies MediaMTX's WHIP endpoint. Changing it means editing the nginx template too. |
+| `LIVE_WHIP_TICKET_TTL_SECONDS` | `300` | ✅ | Lifetime of a browser publish ticket. |
+| `LIVE_WEBRTC_HOST` | `localhost` | ➖ (MediaMTX) | **The one people will get wrong.** The host a *browser* can reach WebRTC media on, injected as `MTX_WEBRTCADDITIONALHOSTS`. Container IPs are gathered automatically and are useless off-host, so ICE never connects until this names something real. |
+| `WEBRTC_UDP_HOST_PORT` | `8189` | ➖ (compose) | Published UDP port for WebRTC media. Cannot be proxied by nginx. |
+
+**Two ways in.** OBS publishes RTMP to `live/<slug>`; a browser publishes WHIP
+to `webrtc/<slug>`, where an ffmpeg inside MediaMTX re-encodes the Opus audio to
+AAC — a browser cannot send AAC, and the MPEG-TS HLS variant cannot carry Opus —
+and republishes to `live/<slug>`. Video is copied, never transcoded. Everything
+downstream sees one kind of broadcast.
+
+That bridge is also why `hlsAlwaysRemux` is **off** in `mediamtx.yml`: kept on,
+MediaMTX builds an HLS muxer for every available path, including the Opus-only
+staging path, where it crashes and is retried for the length of the broadcast.
+On demand, it is simply never built — at the cost of the first viewer waiting a
+couple of seconds for a playlist.
+
+**Camera access needs a secure context.** `getUserMedia` is unavailable over
+plain HTTP on anything but `localhost`, so broadcasting from a phone requires
+HTTPS. The studio detects an insecure context and says so.
 
 **Two auth paths, on purpose.** *Publishing* is authorised by MediaMTX calling
 `/api/live/auth/`, which compares the stream key in constant time. *Playback* is

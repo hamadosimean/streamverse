@@ -250,6 +250,19 @@ LIVE_RTMP_APP = env("LIVE_RTMP_APP", default="live")
 LIVE_RTMP_PUBLIC_URL = env("LIVE_RTMP_PUBLIC_URL", default="rtmp://localhost:1936")
 # Same-origin path where nginx proxies MediaMTX's HLS output.
 LIVE_HLS_PUBLIC_PATH = env("LIVE_HLS_PUBLIC_PATH", default="/live-hls")
+
+# --- Going live from a browser (WebRTC/WHIP) -------------------------------
+# A browser publishes to `<webrtc-app>/<slug>`, where an ffmpeg bridge inside
+# MediaMTX re-encodes the Opus audio to AAC and republishes to `live/<slug>`.
+# The staging path is separate so the channel only flips to `live` once the
+# stream viewers can actually play exists. See mediamtx/bridge.sh.
+LIVE_WEBRTC_APP = env("LIVE_WEBRTC_APP", default="webrtc")
+# Same-origin path where nginx proxies MediaMTX's WHIP endpoint.
+LIVE_WEBRTC_PUBLIC_PATH = env("LIVE_WEBRTC_PUBLIC_PATH", default="/live-webrtc")
+# A browser publish is authorised by a short-lived ticket rather than the
+# channel's permanent stream key: the key would end up in a URL, in MediaMTX's
+# logs and in the browser's history for a credential that never expires.
+LIVE_WHIP_TICKET_TTL_SECONDS = env.int("LIVE_WHIP_TICKET_TTL_SECONDS", default=300)
 # MediaMTX control API, used to reconcile channels stuck in `live`.
 LIVE_MEDIAMTX_API = env("LIVE_MEDIAMTX_API", default="http://mediamtx:9997")
 # Shared secret for the ready / notReady hooks. The auth hook cannot carry a

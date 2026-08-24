@@ -42,9 +42,11 @@ map $host $sv_csp {
 }
 
 # Every powerful browser feature the app does not use is denied. autoplay,
-# fullscreen, PiP and EME are kept because they are the video player.
+# fullscreen, PiP and EME are kept because they are the video player; camera,
+# microphone and display-capture are kept because the live studio broadcasts
+# from the browser. All of them are `self` — no embedded origin gets them.
 map $host $sv_permissions {
-    default "accelerometer=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(self), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(self), usb=(), interest-cohort=()";
+    default "accelerometer=(), autoplay=(self), camera=(self), display-capture=(self), encrypted-media=(self), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), midi=(), payment=(), picture-in-picture=(self), usb=(), interest-cohort=()";
 }
 
 # Link-unfurling crawlers do not execute JavaScript, so the SPA shell tells them
@@ -154,6 +156,39 @@ server {
         add_header Access-Control-Allow-Origin "*" always;
         add_header X-Content-Type-Options "nosniff" always;
         proxy_read_timeout 60s;
+    }
+
+    # ---- Live WebRTC ingest, WHIP (MediaMTX) -----------------------------
+    # Signalling only: a short HTTP exchange that trades SDP and ICE candidates.
+    # The media never comes through here — it is UDP straight from the browser
+    # to MediaMTX's ICE port, which is why that one port is published while
+    # :8889 is not.
+    #
+    # Proxied same-origin so the studio page needs no CORS preflight and no
+    # second hostname, and so the WHIP endpoint inherits the app's own TLS
+    # wherever the deployment terminates it.
+    #
+    # MediaMTX answers the initial POST with a `Location` pointing at the
+    # session resource, relative to ITS root. The client PATCHes and DELETEs
+    # that URL, so it is rewritten back under /live-webrtc/ — without this the
+    # browser would try to DELETE /webrtc/<slug>/whip/<id> on the app origin and
+    # a stopped broadcast would keep publishing.
+    location ~ ^/live-webrtc/(?<whip_path>.*)$ {
+        set $mediamtx_whip http://mediamtx:8889;
+        proxy_pass $mediamtx_whip/$whip_path$is_args$args;
+
+        proxy_set_header Host $http_host;
+        proxy_redirect ~^/(.*)$ $scheme://$http_host/live-webrtc/$1;
+
+        # An SDP offer is a few kilobytes and the answer is expected within the
+        # handshake timeout; buffering it would only add latency to a request
+        # the user is watching a spinner for.
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_read_timeout 30s;
+
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
     }
 
     # ---- API -------------------------------------------------------------

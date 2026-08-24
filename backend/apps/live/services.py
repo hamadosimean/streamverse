@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import secrets
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -33,23 +34,93 @@ class LiveAuthDenied(Exception):
 
 
 def resolve_channel(path: str) -> LiveChannel:
-    """Map a MediaMTX path (`live/<slug>`) back to its channel."""
-    prefix = f"{settings.LIVE_RTMP_APP}/"
-    if not path.startswith(prefix):
+    """Map a MediaMTX path back to its channel.
+
+    Two prefixes resolve to the same channel: `live/<slug>` (RTMP, and the
+    bridged output of a browser broadcast) and `webrtc/<slug>` (a browser
+    publishing over WHIP, before the bridge).
+    """
+    for prefix in (f"{settings.LIVE_RTMP_APP}/", f"{settings.LIVE_WEBRTC_APP}/"):
+        if path.startswith(prefix):
+            slug = path[len(prefix):].strip("/")
+            break
+    else:
         raise LiveAuthDenied(f"Chemin non gere: {path}")
 
-    slug = path[len(prefix):].strip("/")
     try:
         return LiveChannel.objects.select_related("user").get(slug=slug)
     except LiveChannel.DoesNotExist as exc:
         raise LiveAuthDenied(f"Chaine inconnue: {slug}") from exc
 
 
-def authorise_publish(path: str, supplied_key: str) -> LiveChannel:
+# --------------------------------------------------------------------------
+# Browser publish tickets
+#
+# A ticket is what a phone or a laptop publishes with instead of the channel's
+# permanent stream key. It is minted for the authenticated owner, lives in the
+# cache with a TTL of a few minutes, and is bound to one channel.
+#
+# Not single-use: WHIP re-authorises on an ICE restart, and a broadcast that
+# died because the user walked between two wifi access points would be a worse
+# bug than the few minutes of replay window a TTL leaves open.
+# --------------------------------------------------------------------------
+def ticket_key(token: str) -> str:
+    return f"live:whip-ticket:{token}"
+
+
+def issue_publish_ticket(channel: LiveChannel) -> tuple[str, int]:
+    """Mint a short-lived publish credential. Returns (token, ttl_seconds)."""
+    token = secrets.token_urlsafe(32)
+    ttl = settings.LIVE_WHIP_TICKET_TTL_SECONDS
+    cache.set(ticket_key(token), channel.slug, timeout=ttl)
+    logger.info("live: issued publish ticket for %s (ttl %ss)", channel.slug, ttl)
+    return token, ttl
+
+
+def whip_url(channel: LiveChannel, ticket: str) -> str:
+    """Same-origin WHIP endpoint, with the ticket as its credential.
+
+    Note the path: `webrtc/<slug>`, not `live/<slug>`. The browser publishes to
+    the staging path that the bridge reads from.
+    """
+    return (f"{settings.LIVE_WEBRTC_PUBLIC_PATH}/{settings.LIVE_WEBRTC_APP}/"
+            f"{channel.slug}/whip?key={ticket}")
+
+
+def _ticket_matches(token: str, channel: LiveChannel) -> bool:
+    if not token:
+        return False
+    slug = cache.get(ticket_key(token))
+    return bool(slug) and hmac.compare_digest(str(slug), channel.slug)
+
+
+def _is_bridge(supplied_key: str, ip: str) -> bool:
+    """Is this the in-container ffmpeg bridge republishing a browser stream?
+
+    Two conditions, both required: the hook secret, and a source address inside
+    MediaMTX itself. The bridge publishes to 127.0.0.1, so a request carrying
+    the secret from anywhere else is not the bridge — it is someone who read the
+    secret out of a config file and is trying to publish as any channel at all.
+    """
+    expected = settings.LIVE_HOOK_SECRET
+    if not expected or not hmac.compare_digest(supplied_key, expected):
+        return False
+    return ip in ("127.0.0.1", "::1", "")
+
+
+def authorise_publish(path: str, supplied_key: str, *, is_bridge: bool = False,
+                      ip: str = "") -> LiveChannel:
     """Validate a publisher.
 
-    The key comparison is constant-time: a plain `==` on a secret leaks its
-    prefix through timing to anyone who can measure the auth endpoint.
+    Three credentials are accepted, in order of how much they can do:
+
+    * the channel's **stream key** — OBS, ffmpeg, anything RTMP;
+    * a **publish ticket** — a browser going live, valid for minutes;
+    * the **hook secret from inside MediaMTX** — the ffmpeg bridge, and only
+      when the request also declares itself the bridge and comes from loopback.
+
+    Every comparison is constant-time: a plain `==` on a secret leaks its prefix
+    through timing to anyone who can measure the auth endpoint.
     """
     channel = resolve_channel(path)
 
@@ -57,10 +128,21 @@ def authorise_publish(path: str, supplied_key: str) -> LiveChannel:
         raise LiveAuthDenied("Diffusion desactivee pour cette chaine.")
     if channel.user.is_suspended or not channel.user.is_active:
         raise LiveAuthDenied("Compte non autorise a diffuser.")
-    if not supplied_key or not hmac.compare_digest(supplied_key, channel.stream_key):
-        raise LiveAuthDenied("Cle de flux invalide.")
 
-    return channel
+    if not supplied_key:
+        raise LiveAuthDenied("Cle de flux manquante.")
+
+    if is_bridge:
+        if not _is_bridge(supplied_key, ip):
+            raise LiveAuthDenied("Relais non authentifie.")
+        return channel
+
+    if hmac.compare_digest(supplied_key, channel.stream_key):
+        return channel
+    if _ticket_matches(supplied_key, channel):
+        return channel
+
+    raise LiveAuthDenied("Cle de flux invalide.")
 
 
 def authorise_read(path: str) -> LiveChannel:
