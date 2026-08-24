@@ -151,7 +151,7 @@ streamverse/
 │   ├── config/              settings, urls, asgi, celery, routing, jazzmin
 │   └── apps/
 │       ├── core/            storage (MinIO), ws auth, permissions, seed
-│       ├── accounts/        User model, roles, Djoser wiring
+│       ├── accounts/        User model, roles, profile + images, Djoser wiring
 │       ├── catalog/         Category, Tag
 │       ├── videos/          Video/Rendition/Thumbnail, tus, tasks, playback
 │       ├── engagement/      View, Like, Comment, Report + counter services
@@ -362,7 +362,28 @@ Ranked by **shared tags first**, then shared category, then popularity. A video 
 
 ### Channel pages
 
-`/c/<username>` — the creator's public identity plus aggregates over their **public, ready** videos only, so a private upload never leaks its existence through a count. There is **no subscribe button and no new-video notifications**: browsing is follow-less in v1 by design, and the page says so rather than leaving users wondering where the button went.
+`/c/<username>` — the creator's public identity (banner, avatar, bio, location, website) plus aggregates over their **public, ready** videos only, so a private upload never leaks its existence through a count. The page has a follow button but **no new-video notifications**: following changes the follower's own feed and nothing else, and the page says so rather than leaving users wondering why nothing arrived. See [Scope notes](#scope-notes-what-this-does-not-do).
+
+### Profiles: avatar, banner, bio
+
+A user owns the header of their own channel page. `/account` edits the text — display name, bio, location, website — and the two images:
+
+| Field | Endpoint | Limit |
+|---|---|---|
+| avatar | `PUT` / `DELETE /api/accounts/me/avatar/` | 5 MiB, 2048 px per side |
+| banner | `PUT` / `DELETE /api/accounts/me/banner/` | 10 MiB, 6000 px per side |
+| text fields | `PATCH /api/accounts/me/` | bio 1000 chars |
+
+Four things are worth knowing about how the images are handled:
+
+- **They live in the public bucket**, like ad creatives. The private default would sign each URL with a six-hour expiry against the internal `minio:9000` host, which no browser can resolve — every avatar would render as a broken image.
+- **The type is decided by decoding the file**, never by the `Content-Type` header or the filename: both are client-supplied. The stored name is generated server-side, with the extension of whatever Pillow actually opened.
+- **Replacing an image deletes the one it supersedes**, so the bucket does not grow by one object per edit. That delete is best-effort and runs after the row is saved — an orphaned object is a cleanup problem, not a failed request.
+- **The browser's checks are a courtesy.** The upload form rejects an oversized file before spending the user's bandwidth on it; the server repeats every check on the bytes that actually arrive.
+
+`website_url` is rendered as an anchor on a public page, so it is restricted to `http`/`https` and emitted with `rel="noopener noreferrer nofollow ugc"` — a profile link is neither a free ranking boost nor a handle on the tab that opened it.
+
+Both images are optional. With none uploaded the channel header falls back to the gradient and an initials tile, which is also what a viewer sees if an object ever goes missing from the bucket.
 
 ## Live streaming
 
@@ -930,6 +951,8 @@ Everything is in `.env.example` with comments. The ones that matter most:
 | `FFMPEG_VIDEO_ENCODER` | `libx264` | `h264_nvenc` on an NVIDIA-runtime host. |
 | `MINIO_PRESIGN_TTL_SECONDS` | `21600` (6 h) | Private playback session lifetime. |
 | `MAX_UPLOAD_BYTES` | 5 GiB | |
+| `MAX_AVATAR_BYTES` / `MAX_BANNER_BYTES` | 5 MiB / 10 MiB | Profile image ceilings, enforced by decoding the upload. |
+| `MAX_AVATAR_DIMENSION` / `MAX_BANNER_DIMENSION` | 2048 / 6000 px | Longest side accepted for each. |
 | `SEED_ON_START` | `1` | Set `0` to skip demo seeding. |
 | `LIVE_RTMP_PUBLIC_URL` | `rtmp://localhost:1936` | What broadcasters type into OBS. Change the host for a real domain. |
 | `LIVE_HOOK_SECRET` | — | Shared secret for the MediaMTX lifecycle hooks. **Change it.** |

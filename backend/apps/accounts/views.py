@@ -1,18 +1,26 @@
 """Account endpoints beyond what Djoser provides."""
+import logging
+import uuid
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import generics, status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.serializers import (
+    ChannelDetailSerializer,
     PasswordChangeSerializer,
+    ProfileImageUploadSerializer,
     ProfileUpdateSerializer,
-    PublicChannelSerializer,
     UserSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -51,6 +59,108 @@ class ChangePasswordView(APIView):
 
 
 @extend_schema(tags=["accounts"])
+class ProfileImageView(APIView):
+    """Replace or remove one profile image (`avatar` or `banner`).
+
+    PUT with `multipart/form-data` and a single `file` part; DELETE removes the
+    current image. Both answer with the full user record, so the client can drop
+    its cached copy in wholesale rather than patching a URL into it.
+
+    A separate endpoint per image rather than a multipart PATCH on `me/`: the
+    upload needs decode-level validation, and replacing an image has to delete
+    the object it supersedes or the public bucket grows forever.
+    """
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    serializer_class = ProfileImageUploadSerializer
+
+    #: Subclasses set the field they own and its limits.
+    field_name: str = ""
+    max_bytes_setting: str = ""
+    max_dimension_setting: str = ""
+
+    def _limits(self) -> dict:
+        return {
+            "max_bytes": getattr(settings, self.max_bytes_setting),
+            "max_dimension": getattr(settings, self.max_dimension_setting),
+        }
+
+    def _respond(self, request) -> Response:
+        return Response(UserSerializer(request.user, context={"request": request}).data)
+
+    def _discard(self, old_file) -> None:
+        """Drop the superseded object, but never at the cost of the request.
+
+        The database row already points at the new image by the time this runs;
+        a storage hiccup here leaves an orphan in the bucket, which is a cleanup
+        problem, not a user-facing failure.
+        """
+        if not old_file:
+            return
+        try:
+            old_file.storage.delete(old_file.name)
+        except Exception:  # noqa: BLE001 - best effort, see docstring
+            logger.warning("Could not delete superseded %s %r", self.field_name,
+                           old_file.name, exc_info=True)
+
+    @extend_schema(
+        request={"multipart/form-data": {
+            "type": "object",
+            "properties": {"file": {"type": "string", "format": "binary"}},
+            "required": ["file"],
+        }},
+        responses={200: UserSerializer},
+    )
+    def put(self, request, *args, **kwargs):
+        serializer = ProfileImageUploadSerializer(
+            data=request.data, context={"request": request, **self._limits()}
+        )
+        serializer.is_valid(raise_exception=True)
+        upload = serializer.validated_data["file"]
+
+        user = request.user
+        previous = getattr(user, self.field_name)
+        previous = previous if previous else None
+
+        # The stored name is ours, not the client's: an uploaded filename is
+        # attacker-controlled text, and the extension comes from what Pillow
+        # actually decoded rather than from what the name claimed.
+        filename = f"{user.pk}-{uuid.uuid4().hex[:12]}{serializer.context['extension']}"
+        getattr(user, self.field_name).save(filename, upload, save=False)
+        user.save(update_fields=[self.field_name, "updated_at"])
+
+        self._discard(previous)
+        return self._respond(request)
+
+    @extend_schema(responses={200: UserSerializer,
+                              404: OpenApiResponse(description="Aucune image a retirer.")})
+    def delete(self, request, *args, **kwargs):
+        user = request.user
+        current = getattr(user, self.field_name)
+        if not current:
+            return Response({"detail": "Aucune image a retirer."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        setattr(user, self.field_name, None)
+        user.save(update_fields=[self.field_name, "updated_at"])
+        self._discard(current)
+        return self._respond(request)
+
+
+class AvatarView(ProfileImageView):
+    field_name = "avatar"
+    max_bytes_setting = "MAX_AVATAR_BYTES"
+    max_dimension_setting = "MAX_AVATAR_DIMENSION"
+
+
+class BannerView(ProfileImageView):
+    field_name = "banner"
+    max_bytes_setting = "MAX_BANNER_BYTES"
+    max_dimension_setting = "MAX_BANNER_DIMENSION"
+
+
+@extend_schema(tags=["accounts"])
 class PublicChannelView(generics.RetrieveAPIView):
     """A user's public channel: identity plus aggregate stats.
 
@@ -61,7 +171,7 @@ class PublicChannelView(generics.RetrieveAPIView):
     """
 
     permission_classes = [AllowAny]
-    serializer_class = PublicChannelSerializer
+    serializer_class = ChannelDetailSerializer
     lookup_field = "username"
 
     def get_queryset(self):

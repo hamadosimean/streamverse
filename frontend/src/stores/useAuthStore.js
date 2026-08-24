@@ -63,6 +63,28 @@ export const useAuthStore = create()(
         return data
       },
 
+      /**
+       * Upload an avatar or a banner. `kind` is 'avatar' | 'banner'.
+       *
+       * Both image endpoints answer with the whole user record, so the store
+       * replaces its copy rather than merging a URL into it — that keeps the
+       * header, the account page and the channel header from disagreeing about
+       * which picture is current.
+       */
+      async uploadImage(kind, file) {
+        const body = new FormData()
+        body.append('file', file)
+        const { data } = await api.put(`/accounts/me/${kind}/`, body)
+        set({ user: data })
+        return data
+      },
+
+      async removeImage(kind) {
+        const { data } = await api.delete(`/accounts/me/${kind}/`)
+        set({ user: data })
+        return data
+      },
+
       logout() {
         tokenStorage.clear()
         set({ user: null, status: 'anonymous' })

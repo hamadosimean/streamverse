@@ -4,6 +4,7 @@ Email is the login field. `username` is kept because it doubles as the public
 channel handle (`/c/<username>`), so it must be unique, URL-safe and stable.
 """
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.core.files.storage import storages
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
@@ -18,6 +19,15 @@ USERNAME_VALIDATOR = RegexValidator(
         "commencant par une lettre ou un chiffre."
     ),
 )
+
+
+def public_profile_storage():
+    """Avatars and banners belong in the PUBLIC bucket.
+
+    A callable rather than `storages["public"]` directly so the storage is
+    resolved at runtime and the migration stays serialisable.
+    """
+    return storages["public"]
 
 
 class Role(models.TextChoices):
@@ -67,9 +77,24 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     )
     display_name = models.CharField(_("nom affiche"), max_length=80, blank=True)
     bio = models.TextField(_("biographie"), max_length=1000, blank=True)
+
+    # Both images go in the PUBLIC bucket: they are rendered for every visitor of
+    # a channel page, so the default (private) storage was wrong twice over — it
+    # would sign each URL with an expiry, against the internal `minio:9000` host
+    # no browser can resolve. See apps.monetization.models.public_creative_storage
+    # for the same reasoning applied to ad creatives.
     avatar = models.ImageField(
-        _("avatar"), upload_to="avatars/%Y/%m/", blank=True, null=True
+        _("avatar"), upload_to="avatars/%Y/%m/", storage=public_profile_storage,
+        blank=True, null=True,
     )
+    banner = models.ImageField(
+        _("banniere"), upload_to="banners/%Y/%m/", storage=public_profile_storage,
+        blank=True, null=True,
+        help_text=_("Image large affichee en tete de la chaine (16:5 conseille)."),
+    )
+
+    location = models.CharField(_("localisation"), max_length=80, blank=True)
+    website_url = models.URLField(_("site web"), max_length=200, blank=True)
 
     role = models.CharField(
         _("role"), max_length=16, choices=Role.choices, default=Role.USER, db_index=True

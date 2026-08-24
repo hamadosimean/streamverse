@@ -4,28 +4,47 @@ from djoser.serializers import UserCreatePasswordRetypeSerializer
 from rest_framework import serializers
 
 from apps.accounts.models import Role, User
+from apps.accounts.validators import validate_profile_image
 
 
-class UserSerializer(serializers.ModelSerializer):
-    """The authenticated user's own record."""
+class ImageUrlMixin:
+    """`avatar_url` / `banner_url` for any serializer over a User.
 
-    avatar_url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = User
-        fields = (
-            "id", "email", "username", "display_name", "bio", "avatar", "avatar_url",
-            "role", "is_active", "is_suspended", "preferred_language", "created_at",
-        )
-        read_only_fields = ("id", "email", "username", "role", "is_active",
-                           "is_suspended", "created_at")
+    Both images live in the public bucket, so `.url` is already an absolute,
+    unsigned, browser-reachable URL — no request context needed to build it.
+    """
 
     def get_avatar_url(self, obj) -> str | None:
         return obj.avatar.url if obj.avatar else None
 
+    def get_banner_url(self, obj) -> str | None:
+        return obj.banner.url if obj.banner else None
 
-class PublicChannelSerializer(serializers.ModelSerializer):
-    """A user as seen by anyone else — their channel identity. No email, ever."""
+
+class UserSerializer(ImageUrlMixin, serializers.ModelSerializer):
+    """The authenticated user's own record."""
+
+    avatar_url = serializers.SerializerMethodField()
+    banner_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            "id", "email", "username", "display_name", "bio", "location",
+            "website_url", "avatar_url", "banner_url", "role", "is_active",
+            "is_suspended", "preferred_language", "created_at",
+        )
+        read_only_fields = ("id", "email", "username", "role", "is_active",
+                           "is_suspended", "created_at")
+
+
+class PublicChannelSerializer(ImageUrlMixin, serializers.ModelSerializer):
+    """A user as seen by anyone else — their channel identity. No email, ever.
+
+    Deliberately lean: this is nested in every video card, so a field added here
+    is paid for once per card on every listing. Channel-page-only fields belong
+    on `ChannelDetailSerializer`.
+    """
 
     avatar_url = serializers.SerializerMethodField()
 
@@ -34,8 +53,17 @@ class PublicChannelSerializer(serializers.ModelSerializer):
         fields = ("id", "username", "display_name", "bio", "avatar_url", "created_at")
         read_only_fields = fields
 
-    def get_avatar_url(self, obj) -> str | None:
-        return obj.avatar.url if obj.avatar else None
+
+class ChannelDetailSerializer(PublicChannelSerializer):
+    """The channel page's own header — everything above, plus the decoration."""
+
+    banner_url = serializers.SerializerMethodField()
+
+    class Meta(PublicChannelSerializer.Meta):
+        fields = PublicChannelSerializer.Meta.fields + (
+            "banner_url", "location", "website_url",
+        )
+        read_only_fields = fields
 
 
 class UserCreateSerializer(UserCreatePasswordRetypeSerializer):
@@ -64,9 +92,28 @@ class UserCreateSerializer(UserCreatePasswordRetypeSerializer):
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """The text half of the profile.
+
+    Avatar and banner are handled by their own endpoints (see
+    `ProfileImageView`): an image needs decode-level validation and has to clean
+    up the object it replaces, and neither belongs in a JSON PATCH that a client
+    may send with only `display_name` in it.
+    """
+
     class Meta:
         model = User
-        fields = ("display_name", "bio", "avatar", "preferred_language")
+        fields = ("display_name", "bio", "location", "website_url",
+                  "preferred_language")
+
+    def validate_website_url(self, value):
+        # A profile link is rendered as an anchor on a public page; only the two
+        # schemes a browser should navigate to are allowed. `javascript:` and
+        # `data:` in particular must never reach an href.
+        if value and not value.lower().startswith(("http://", "https://")):
+            raise serializers.ValidationError(
+                "Le lien doit commencer par http:// ou https://."
+            )
+        return value
 
 
 class PasswordChangeSerializer(serializers.Serializer):
@@ -80,4 +127,22 @@ class PasswordChangeSerializer(serializers.Serializer):
 
     def validate_new_password(self, value):
         validate_password(value, self.context["request"].user)
+        return value
+
+
+class ProfileImageUploadSerializer(serializers.Serializer):
+    """One image, for either `avatar` or `banner`.
+
+    The caller puts the per-field limits in the context, so the same serializer
+    covers both endpoints without a subclass each.
+    """
+
+    file = serializers.FileField(write_only=True)
+
+    def validate_file(self, value):
+        self.context["extension"] = validate_profile_image(
+            value,
+            max_bytes=self.context["max_bytes"],
+            max_dimension=self.context["max_dimension"],
+        )
         return value

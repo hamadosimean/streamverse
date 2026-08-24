@@ -259,7 +259,24 @@
     "role": "Role",
     "memberSince": "Membre depuis {{date}}",
     "session": "Session",
-    "sessionHint": "La deconnexion efface les jetons de cette session sur cet appareil uniquement. Vos autres appareils restent connectes."
+    "sessionHint": "La deconnexion efface les jetons de cette session sur cet appareil uniquement. Vos autres appareils restent connectes.",
+    "images": "Photo et banniere",
+    "avatar": "Photo de profil",
+    "avatarHint": "JPG, PNG, WebP ou GIF. 5 Mo maximum.",
+    "banner": "Banniere",
+    "bannerHint": "Format large conseille (1500x500). 10 Mo maximum.",
+    "imageAdd": "Ajouter",
+    "imageReplace": "Remplacer",
+    "imageType": "Format non supporte. Choisissez un JPG, PNG, WebP ou GIF.",
+    "imageTooLarge": "Image trop lourde. Maximum: {{size}} Mo.",
+    "avatarUpdated": "Photo de profil mise a jour.",
+    "avatarRemoved": "Photo de profil retiree.",
+    "bannerUpdated": "Banniere mise a jour.",
+    "bannerRemoved": "Banniere retiree.",
+    "bioHint": "Affichee en tete de votre chaine.",
+    "location": "Localisation",
+    "locationPlaceholder": "Paris, France",
+    "website": "Site web"
   },
   "validation": {
     "required": "Ce champ est obligatoire.",
@@ -268,7 +285,8 @@
     "max": "Au maximum {{count}} caracteres.",
     "usernamePattern": "Minuscules, chiffres, tiret ou underscore uniquement.",
     "passwordMismatch": "Les mots de passe ne correspondent pas.",
-    "passwordMin": "Au moins 8 caracteres."
+    "passwordMin": "Au moins 8 caracteres.",
+    "url": "Lien invalide. Il doit commencer par http:// ou https://."
   },
   "catalog": {
     "category": {

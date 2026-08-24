@@ -259,7 +259,24 @@
     "role": "Role",
     "memberSince": "Member since {{date}}",
     "session": "Session",
-    "sessionHint": "Signing out clears this session’s tokens on this device only. Your other devices stay signed in."
+    "sessionHint": "Signing out clears this session’s tokens on this device only. Your other devices stay signed in.",
+    "images": "Picture and banner",
+    "avatar": "Profile picture",
+    "avatarHint": "JPG, PNG, WebP or GIF. 5 MB max.",
+    "banner": "Banner",
+    "bannerHint": "Wide format recommended (1500x500). 10 MB max.",
+    "imageAdd": "Add",
+    "imageReplace": "Replace",
+    "imageType": "Unsupported format. Choose a JPG, PNG, WebP or GIF.",
+    "imageTooLarge": "Image too large. Maximum: {{size}} MB.",
+    "avatarUpdated": "Profile picture updated.",
+    "avatarRemoved": "Profile picture removed.",
+    "bannerUpdated": "Banner updated.",
+    "bannerRemoved": "Banner removed.",
+    "bioHint": "Shown at the top of your channel.",
+    "location": "Location",
+    "locationPlaceholder": "Paris, France",
+    "website": "Website"
   },
   "validation": {
     "required": "This field is required.",
@@ -268,7 +285,8 @@
     "max": "At most {{count}} characters.",
     "usernamePattern": "Lowercase letters, digits, hyphen or underscore only.",
     "passwordMismatch": "Passwords do not match.",
-    "passwordMin": "At least 8 characters."
+    "passwordMin": "At least 8 characters.",
+    "url": "Invalid link. It must start with http:// or https://."
   },
   "catalog": {
     "category": {

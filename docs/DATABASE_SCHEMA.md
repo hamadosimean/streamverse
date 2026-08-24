@@ -116,7 +116,10 @@ identity to keep in sync.
 | `username` | 3–30 chars, `^[a-z0-9][a-z0-9_-]{2,29}$`, unique | Public channel handle in `/c/<username>`. Stable — changing it breaks shared links. |
 | `display_name` | ≤ 80 chars | Defaults to `username` when blank. |
 | `bio` | ≤ 1000 chars | Channel description. |
+| `location` | ≤ 80 chars | Free text. Never geocoded or validated — it is a label, not a place. |
+| `website_url` | ≤ 200 chars, `http`/`https` | Rendered as an anchor on a public page, so the scheme is restricted and the link carries `rel="noopener noreferrer nofollow ugc"`. |
 | `avatar` | image reference | Stored in the **public** bucket. |
+| `banner` | image reference | Same bucket, same rules. Optional — the channel header falls back to a gradient. |
 | `role` | `user` \| `moderator` \| `admin` | Coarse platform-wide capability. Admin inherits every moderator capability. |
 | `is_active` | boolean, default **false** | Becomes true only after email activation. |
 | `is_suspended` | boolean | Independent of `is_active`. Gate is enforced on *every* request, not just at login. |
@@ -127,6 +130,12 @@ identity to keep in sync.
 > A suspended user's public content disappears from every feed, search result
 > and channel listing — enforced in the `publicly_listed()` query, not by
 > updating rows, so lifting a suspension restores everything atomically.
+
+> Both images are world-readable by construction: they are rendered for every
+> visitor of a channel page, so the private default would sign each URL with an
+> expiry against the internal MinIO host and no browser would resolve it. The
+> column holds a storage path; the API exposes `avatar_url` / `banner_url`,
+> absolute and unsigned. Replacing an image deletes the object it supersedes.
 
 ### 3.2 Taxonomy
 

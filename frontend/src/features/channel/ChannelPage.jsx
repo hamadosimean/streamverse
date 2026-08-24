@@ -1,8 +1,9 @@
-import { Clock, Eye, Film, Info, ThumbsUp, UserPlus } from 'lucide-react'
+import { Clock, Eye, Film, Globe, Info, MapPin, ThumbsUp, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 
+import Avatar from '@/components/Avatar'
 import { VideoGrid } from '@/components/VideoCard'
 import { EmptyState, ErrorState, LoadingBlock, SkeletonGrid } from '@/components/ui'
 import { cn } from '@/lib/cn'
@@ -78,15 +79,18 @@ export default function ChannelPage() {
   return (
     <div className="mx-auto max-w-[1400px]">
       <header className="mb-8 overflow-hidden rounded-card border border-ink-800">
-        <div className="h-24 bg-gradient-to-r from-brand-700/40 via-ink-850 to-accent-500/25 sm:h-32" />
+        {channel.banner_url ? (
+          <img
+            src={channel.banner_url}
+            alt=""
+            className="h-24 w-full object-cover sm:h-40"
+          />
+        ) : (
+          <div className="h-24 bg-gradient-to-r from-brand-700/40 via-ink-850 to-accent-500/25 sm:h-32" />
+        )}
 
         <div className="flex flex-col gap-4 bg-ink-850 px-5 pb-5 sm:flex-row sm:items-end">
-          <span
-            className="-mt-10 grid size-20 shrink-0 place-items-center rounded-full border-4 border-ink-850 bg-brand-600 text-xl font-bold text-white sm:size-24 sm:text-2xl"
-            aria-hidden
-          >
-            {(channel.display_name || channel.username).slice(0, 2).toUpperCase()}
-          </span>
+          <Avatar user={channel} size="xl" className="-mt-10 border-4 border-ink-850" />
 
           <div className="min-w-0 flex-1 sm:pb-1">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -124,6 +128,34 @@ export default function ChannelPage() {
                 value={formatDuration(stats.total_duration_seconds ?? 0)}
               />
             </div>
+
+            {(channel.location || channel.website_url) && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-400">
+                {channel.location && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="size-3.5 text-brand-400" aria-hidden />
+                    {channel.location}
+                  </span>
+                )}
+                {channel.website_url && (
+                  <a
+                    href={channel.website_url}
+                    target="_blank"
+                    // A channel link is user-supplied: `noopener` keeps the new
+                    // tab from reaching back into this one via window.opener,
+                    // and `nofollow ugc` keeps the profile from being a free
+                    // ranking boost for whatever gets pasted in there.
+                    rel="noopener noreferrer nofollow ugc"
+                    className="flex items-center gap-1.5 text-brand-300 transition hover:text-brand-200"
+                  >
+                    <Globe className="size-3.5" aria-hidden />
+                    <span className="truncate">
+                      {channel.website_url.replace(/^https?:\/\//i, '').replace(/\/$/, '')}
+                    </span>
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

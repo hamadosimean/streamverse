@@ -6,7 +6,9 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { z } from 'zod'
 
+import Avatar from '@/components/Avatar'
 import { Badge, Button, Field } from '@/components/ui'
+import ProfileImagesCard from '@/features/account/ProfileImagesCard'
 import { api, apiErrorMessage, apiFieldErrors } from '@/lib/api'
 import { formatAbsolute } from '@/lib/format'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -20,6 +22,16 @@ function ProfileForm() {
   const schema = z.object({
     display_name: z.string().max(80, t('validation.max', { count: 80 })),
     bio: z.string().max(1000, t('validation.max', { count: 1000 })),
+    location: z.string().max(80, t('validation.max', { count: 80 })),
+    // Empty is valid; anything else must be a URL the browser can follow, which
+    // is also what the server enforces before it lands in a public anchor.
+    website_url: z
+      .string()
+      .trim()
+      .max(200, t('validation.max', { count: 200 }))
+      .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), {
+        message: t('validation.url'),
+      }),
     preferred_language: z.enum(['fr', 'en']),
   })
 
@@ -33,6 +45,8 @@ function ProfileForm() {
     defaultValues: {
       display_name: user?.display_name || '',
       bio: user?.bio || '',
+      location: user?.location || '',
+      website_url: user?.website_url || '',
       preferred_language: user?.preferred_language || 'fr',
     },
   })
@@ -47,7 +61,10 @@ function ProfileForm() {
       const fields = apiFieldErrors(error)
       let matched = false
       Object.entries(fields).forEach(([key, message]) => {
-        if (['display_name', 'bio', 'preferred_language'].includes(key)) {
+        if (
+          ['display_name', 'bio', 'location', 'website_url', 'preferred_language']
+            .includes(key)
+        ) {
           setError(key, { message })
           matched = true
         }
@@ -67,8 +84,31 @@ function ProfileForm() {
         <input type="text" className="sv-input" {...register('display_name')} />
       </Field>
 
-      <Field label={t('account.bio')} error={errors.bio?.message}>
+      <Field
+        label={t('account.bio')}
+        hint={t('account.bioHint')}
+        error={errors.bio?.message}
+      >
         <textarea rows={4} className="sv-input resize-y" {...register('bio')} />
+      </Field>
+
+      <Field label={t('account.location')} error={errors.location?.message}>
+        <input
+          type="text"
+          className="sv-input"
+          placeholder={t('account.locationPlaceholder')}
+          {...register('location')}
+        />
+      </Field>
+
+      <Field label={t('account.website')} error={errors.website_url?.message}>
+        <input
+          type="url"
+          inputMode="url"
+          className="sv-input"
+          placeholder="https://exemple.com"
+          {...register('website_url')}
+        />
       </Field>
 
       <Field label={t('account.language')} error={errors.preferred_language?.message}>
@@ -205,9 +245,7 @@ function SessionCard() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
-            {(user?.display_name || user?.username || '?').slice(0, 2).toUpperCase()}
-          </span>
+          <Avatar user={user} size="md" />
           <div>
             <p className="text-sm font-medium">{user?.display_name || user?.username}</p>
             <p className="text-xs text-ink-400">@{user?.username}</p>
@@ -242,6 +280,7 @@ export default function AccountPage() {
       </header>
 
       <div className="grid gap-5">
+        <ProfileImagesCard />
         <ProfileForm />
         <PasswordForm />
         <SessionCard />

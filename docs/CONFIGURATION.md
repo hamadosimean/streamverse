@@ -250,7 +250,7 @@ will not match the `Host` header the browser actually sends.
 | `MINIO_PUBLIC_ENDPOINT` | `http://localhost:9010` | ✅ | **The one people get wrong.** Change it when the stack moves off localhost or private playback fails signature validation. Also interpolated into the nginx CSP, so posters, manifests and segments are only loadable from this origin. |
 | `MINIO_ROOT_USER` → `MINIO_ACCESS_KEY` | `streamverse` | ✅ | |
 | `MINIO_ROOT_PASSWORD` → `MINIO_SECRET_KEY` 🔒 | `streamverse-secret` | ✅ | |
-| `MINIO_PUBLIC_BUCKET` | `streamverse-public` | ✅ | Anonymous read. Holds public + unlisted HLS, posters, avatars, ad creatives. |
+| `MINIO_PUBLIC_BUCKET` | `streamverse-public` | ✅ | Anonymous read. Holds public + unlisted HLS, posters, avatars, channel banners, ad creatives. |
 | `MINIO_PRIVATE_BUCKET` | `streamverse-private` | ✅ | Presigned access only. Holds private HLS **and every uploaded original**, whatever the visibility. |
 | `MINIO_PRESIGN_TTL_SECONDS` | `21600` (6 h) | ✅ | Lifetime of a presigned playback session. Shorter is safer; too short and a long viewing session dies mid-playback. |
 | `MINIO_REGION` | `us-east-1` | ➖ | Signature region. |
@@ -283,6 +283,27 @@ The ABR ladder itself (240p–1080p, bitrates, RFC 6381 codec strings) is code,
 not configuration: `backend/apps/videos/services/ladder.py`. It never upscales
 past the source, and applies each rung to the **short** side so portrait video
 is not letterboxed.
+
+### Profile images
+
+Avatars and channel banners are a separate path from the video pipeline: an
+ordinary multipart `PUT`, no tus, no Celery, straight into the **public** bucket.
+
+| Variable | Default | Fwd | Effect |
+|---|---|---|---|
+| `MAX_AVATAR_BYTES` | `5242880` (5 MiB) | ✅ | Rejected before decoding. |
+| `MAX_BANNER_BYTES` | `10485760` (10 MiB) | ✅ | |
+| `MAX_AVATAR_DIMENSION` | `2048` | ✅ | Longest side, in pixels. |
+| `MAX_BANNER_DIMENSION` | `6000` | ✅ | Wider than an avatar: a banner is a strip. |
+
+Accepted formats are fixed in `settings.py` (`ALLOWED_IMAGE_MIME_TYPES`): JPEG,
+PNG, WebP, GIF. Which one a file *is* comes from decoding it with Pillow — the
+`Content-Type` header and the filename are client-supplied strings and neither
+is trusted. The frontend applies the same size limits before uploading, but only
+to save the user a transfer they were going to lose anyway.
+
+Raising these means every viewer of a channel page pays the difference, so the
+ceilings are about page weight rather than disk.
 
 ---
 

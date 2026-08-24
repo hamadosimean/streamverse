@@ -58,9 +58,77 @@ Access tokens are short-lived. Refresh tokens rotate on each use and are blackli
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | GET | `/api/accounts/me/` | Auth | Current user profile with channel info |
-| PATCH | `/api/accounts/me/` | Auth | Update profile (display_name, bio, avatar, preferred_language) |
-| GET | `/api/accounts/users/<username>/` | Public | Public channel profile |
-| GET | `/api/accounts/users/<username>/videos/` | Public | Channel's published videos |
+| PATCH | `/api/accounts/me/` | Auth | Update the text profile (see below) |
+| POST | `/api/accounts/me/password/` | Auth | Change password (`current_password`, `new_password`) |
+| PUT | `/api/accounts/me/avatar/` | Auth | Replace the profile picture (multipart) |
+| DELETE | `/api/accounts/me/avatar/` | Auth | Remove the profile picture |
+| PUT | `/api/accounts/me/banner/` | Auth | Replace the channel banner (multipart) |
+| DELETE | `/api/accounts/me/banner/` | Auth | Remove the channel banner |
+| GET | `/api/accounts/channels/<username>/` | Public | Public channel profile + aggregates |
+| GET | `/api/accounts/channels/<username>/videos/` | Public | Channel's published videos (`?sort=recent\|popular\|oldest`) |
+
+### The profile
+
+`PATCH /api/accounts/me/` accepts the text fields only:
+
+```json
+{
+  "display_name": "Fatou Diallo",
+  "bio": "Realisatrice a Ouagadougou.",
+  "location": "Ouagadougou, Burkina Faso",
+  "website_url": "https://fatou.example.com",
+  "preferred_language": "fr"
+}
+```
+
+`email`, `username`, `role`, `is_active` and `is_suspended` are read-only — signup and moderation own them. `website_url` must be `http`/`https`: it is rendered as an anchor on a public page.
+
+Every write here answers with the **full** user record, not the patch, so a client can replace its cached copy instead of merging.
+
+### Profile images
+
+Avatar and banner have their own endpoints rather than riding along in the PATCH: an image needs decode-level validation, and replacing one has to delete the object it supersedes.
+
+```
+PUT /api/accounts/me/avatar/
+Content-Type: multipart/form-data
+
+file=<binary>
+```
+
+| Image | Max size | Max side | Field in responses |
+|---|---|---|---|
+| avatar | 5 MiB | 2048 px | `avatar_url` |
+| banner | 10 MiB | 6000 px | `banner_url` |
+
+Accepted formats are JPEG, PNG, WebP and GIF — decided by **decoding** the file, not by its `Content-Type` header or filename. The stored object name is generated server-side. Both endpoints return the full user record; `DELETE` on an image that is not set answers `404`.
+
+Both `*_url` values are absolute, unsigned URLs into the public bucket, safe to render for anonymous visitors and to cache. They are `null` when no image is set — clients are expected to fall back to an initials tile.
+
+**Public channel response:**
+```json
+{
+  "id": 3,
+  "username": "fatou",
+  "display_name": "Fatou Diallo",
+  "bio": "Realisatrice a Ouagadougou.",
+  "location": "Ouagadougou, Burkina Faso",
+  "website_url": "https://fatou.example.com",
+  "avatar_url": "http://localhost:9010/streamverse-public/avatars/2026/08/3-5eb475ce7bd3.png",
+  "banner_url": "http://localhost:9010/streamverse-public/banners/2026/08/3-0c1f2e58d7e7.png",
+  "created_at": "2026-08-11T23:38:51Z",
+  "stats": {
+    "video_count": 5, "total_views": 512, "total_likes": 14,
+    "total_duration_seconds": 55, "follower_count": 2
+  },
+  "is_following": false,
+  "is_self": false
+}
+```
+
+`stats` covers **public, ready** videos only, so a private upload never leaks its existence through a count. `is_following` is whether *the caller* follows this channel — never whether anyone does.
+
+The uploader nested in a video card carries the lean shape instead (`id`, `username`, `display_name`, `bio`, `avatar_url`, `created_at`): `banner_url` and the rest would be paid for once per card on every listing.
 
 ---
 

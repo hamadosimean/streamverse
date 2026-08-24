@@ -77,11 +77,11 @@ User ──pays──► Transaction
 
 #### `accounts_user`
 
-Primary key: `INTEGER` (auto, Django default)
+Primary key: `BIGINT` (auto, Django default)
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| `id` | integer | NO | PK, auto-increment |
+| `id` | bigint | NO | PK, auto-increment |
 | `password` | varchar(128) | NO | Argon2/PBKDF2 hash |
 | `last_login` | timestamptz | YES | |
 | `is_superuser` | boolean | NO | |
@@ -89,7 +89,10 @@ Primary key: `INTEGER` (auto, Django default)
 | `username` | varchar(30) | NO | UNIQUE, public channel handle |
 | `display_name` | varchar(80) | NO | Defaults to username |
 | `bio` | text | NO | max 1000 chars |
-| `avatar` | varchar(100) | YES | Storage path |
+| `avatar` | varchar(100) | YES | Storage path, **public** bucket |
+| `banner` | varchar(100) | YES | Storage path, **public** bucket |
+| `location` | varchar(80) | NO | Free text, shown on the channel header |
+| `website_url` | varchar(200) | NO | `http`/`https` only — it becomes an anchor |
 | `role` | varchar(16) | NO | `user` / `moderator` / `admin` |
 | `is_active` | boolean | NO | True after email activation |
 | `is_staff` | boolean | NO | Django admin access |

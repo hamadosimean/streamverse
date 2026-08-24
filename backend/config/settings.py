@@ -214,6 +214,20 @@ ALLOWED_VIDEO_MIME_TYPES = [
 UPLOAD_SESSION_TTL_HOURS = env.int("UPLOAD_SESSION_TTL_HOURS", default=24)
 
 # --------------------------------------------------------------------------
+# Profile images (avatar + channel banner)
+#
+# These are small, world-readable images that live in the PUBLIC bucket, so the
+# limits are about keeping a page cheap to render rather than about disk. The
+# dimension ceilings are enforced server-side: a browser can be told to resize
+# before upload, but never trusted to have done it.
+# --------------------------------------------------------------------------
+ALLOWED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+MAX_AVATAR_BYTES = env.int("MAX_AVATAR_BYTES", default=5 * 1024 * 1024)      # 5 MiB
+MAX_BANNER_BYTES = env.int("MAX_BANNER_BYTES", default=10 * 1024 * 1024)     # 10 MiB
+MAX_AVATAR_DIMENSION = env.int("MAX_AVATAR_DIMENSION", default=2048)
+MAX_BANNER_DIMENSION = env.int("MAX_BANNER_DIMENSION", default=6000)
+
+# --------------------------------------------------------------------------
 # Engagement & search (Phase 3)
 # --------------------------------------------------------------------------
 # A view only counts after this much watch time — or 30% of the video, whichever

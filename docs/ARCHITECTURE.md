@@ -95,7 +95,8 @@
 backend/apps/
 ├── core/          Base models (TimeStampedModel, UUIDPrimaryKeyModel),
 │                  middleware, health endpoint, custom storage backend
-├── accounts/      Custom User model (email login), roles, suspension
+├── accounts/      Custom User model (email login), roles, suspension,
+│                  profile: bio, location, website, avatar + banner uploads
 ├── catalog/       Category and Tag taxonomy
 ├── videos/        Video model, renditions, thumbnails, tus upload sessions,
 │                  transcode pipeline, Shorts classification
@@ -188,7 +189,7 @@ Routes are lazily code-split: the watch page pulls in hls.js and the studio pull
 | `/studio` | Creator studio | Auth |
 | `/studio/live` | Live streaming studio | Auth |
 | `/studio/videos/:videoId` | Video editor | Auth |
-| `/account` | Account settings | Auth |
+| `/account` | Profile + account settings | Auth |
 | `/manage/moderation` | Moderation queue | Moderator+ |
 | `/manage/dashboard` | Admin dashboard | Admin |
 | `/manage/ads` | Ad campaign manager | Admin |
@@ -270,10 +271,13 @@ videos/<uuid>/thumbs/
   sprite.jpg
   thumbnails.vtt
 ads/<year>/<month>/<creative>
-avatars/<year>/<month>/<avatar>
+avatars/<year>/<month>/<image>
+banners/<year>/<month>/<image>
 ```
 
 Private videos have their HLS assets in `streamverse-private`. Visibility changes trigger a bucket migration of the entire `videos/<uuid>/` prefix. The **original file** always stays private.
+
+Profile images (`avatars/`, `banners/`) and ad creatives are public by nature — they are rendered for every visitor — so they are written straight to the public bucket through a Django `FileField` rather than the direct-S3 path the transcoder uses. Object names are generated server-side, and replacing an image deletes the one it supersedes.
 
 ---
 
