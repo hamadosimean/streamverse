@@ -171,3 +171,58 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         self.suspended_at = None
         self.save(update_fields=["is_suspended", "suspension_reason",
                                  "suspended_at", "updated_at"])
+
+
+class SocialProvider(models.TextChoices):
+    GOOGLE = "google", "Google"
+
+
+class SocialAccount(TimeStampedModel):
+    """A link between a StreamVerse user and an identity at an OAuth provider.
+
+    Its own table rather than a `google_sub` column on User, for two reasons:
+    a second provider costs a row instead of a migration, and the link carries
+    its own history (when it was made, when it was last used) that has nothing
+    to do with the user record.
+
+    The match is on `subject`, never on e-mail: Google's `sub` is permanent,
+    while the address on the account can be changed by its owner.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="social_accounts",
+        verbose_name=_("utilisateur"),
+    )
+    provider = models.CharField(
+        _("fournisseur"), max_length=20, choices=SocialProvider.choices,
+    )
+    subject = models.CharField(
+        _("identifiant fournisseur"), max_length=255,
+        help_text=_("Identifiant stable du compte chez le fournisseur (`sub`)."),
+    )
+    #: The address the provider reported when the link was made. Kept for
+    #: support ("which Google account is this?"), never used to authenticate.
+    email = models.EmailField(_("e-mail fournisseur"), blank=True)
+    last_used_at = models.DateTimeField(_("derniere utilisation"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("compte externe")
+        verbose_name_plural = _("comptes externes")
+        constraints = [
+            # One provider identity maps to exactly one user — without this, two
+            # accounts could both claim the same Google login.
+            models.UniqueConstraint(
+                fields=["provider", "subject"], name="uniq_social_provider_subject"
+            ),
+            # And a user links each provider at most once.
+            models.UniqueConstraint(
+                fields=["provider", "user"], name="uniq_social_provider_user"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.get_provider_display()} -> {self.user.username}"
+
+    def touch(self) -> None:
+        self.last_used_at = timezone.now()
+        self.save(update_fields=["last_used_at", "updated_at"])

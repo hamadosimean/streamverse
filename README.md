@@ -11,6 +11,7 @@ Self-hosted video-sharing platform — upload, multi-rendition HLS transcoding, 
 
 - [Quick start](#quick-start)
 - [Demo credentials](#demo-credentials)
+- [Accounts & sign-in](#accounts--sign-in)
 - [Architecture](#architecture)
 - [The transcoding pipeline](#the-transcoding-pipeline)
 - [Public vs private HLS delivery](#public-vs-private-hls-delivery)
@@ -86,10 +87,132 @@ Other consoles:
 | Ad campaign manager | http://localhost:8110/manage/ads | admin only |
 | Moderation queue | http://localhost:8110/manage/moderation | moderator or admin |
 | Admin dashboard | http://localhost:8110/manage/dashboard | admin only |
-| Mailpit (activation emails) | http://localhost:8045 | — |
 | MinIO console | http://localhost:9011 | `streamverse` / `streamverse-secret` |
 
-Accounts created through the public signup flow require email activation; the activation email lands in Mailpit.
+Accounts created through the public signup flow require email activation. That email is sent over real SMTP — see [Accounts & sign-in](#accounts--sign-in) for what to configure, and for the one-line alternative that prints the activation link to the log instead.
+
+---
+
+## Accounts & sign-in
+
+Two ways in: an email and a password, or a Google account. Both end at the same
+place — a SimpleJWT access/refresh pair in `localStorage`, rotated and
+blacklisted on use — so nothing downstream knows or cares which one was used.
+
+### Sign in with Google
+
+Optional, and off until you give it credentials. With none configured,
+`GET /api/auth/providers/` reports `{"google": {"enabled": false}}` and the
+frontend renders no button rather than one that can only fail.
+
+To turn it on, create an **OAuth client ID** of type *Web application* in
+[console.cloud.google.com](https://console.cloud.google.com) → APIs & Services →
+Credentials, and register the callback:
+
+```
+Authorized JavaScript origins:  http://localhost:8110
+Authorized redirect URIs:       http://localhost:8110/auth/google/callback
+```
+
+```dotenv
+GOOGLE_OAUTH_CLIENT_ID=<...>.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-<...>
+```
+
+Google compares the redirect URI as an exact string — a trailing slash, `http`
+against `https`, or a different port is a rejected sign-in, not a warning. The
+client secret starts with `GOCSPX-`; pasting the client id into both fields
+fails the exchange with `invalid_client`.
+
+**Why the redirect flow and not Google's button script.** The obvious
+alternative is `gsi/client`, which renders Google's own button and hands the
+browser an ID token. It costs a third-party script tag and an iframe, which
+means widening the CSP with `script-src https://accounts.google.com` — and that
+CSP is the one thing standing between an injected script and the JWTs in
+`localStorage` (see [Known accepted risks](#known-accepted-risks)). So this
+takes a redirect instead, and loads **no Google JavaScript at all**. The G mark
+on the button is an inline SVG.
+
+What happens, end to end:
+
+```
+SPA ──GET /api/auth/google/authorize/?next=/studio──► backend
+        mints state + PKCE verifier, parks them in Redis (10 min, single use),
+        returns the URL. Only the URL reaches the browser.
+   ◄───────────────────────────────────────────────────
+browser ──full-page navigation──► accounts.google.com  (the user sees the real
+                                                        address bar)
+   ◄──redirect to /auth/google/callback?code&state──
+SPA ──POST /api/auth/google/callback/ {code, state}──► backend
+        redeems the state, exchanges the code server-to-server with the client
+        secret + PKCE verifier, verifies the ID token's signature, issuer,
+        audience and expiry, resolves the user
+   ◄──{access, refresh, created, next}───────────────
+```
+
+Four things that decide who the sign-in is *for*:
+
+- **Identity is the Google `sub`, never the email.** The address on a Google
+  account can be changed by its owner; `sub` cannot. Links live in
+  `accounts_socialaccount`, one row per `(provider, subject)`.
+- **An unverified address is rejected outright.** Anyone can attach an address
+  to a Google account; only `email_verified` is evidence, and without it a
+  stranger could claim the StreamVerse account that already owns it.
+- **A verified address that matches an existing account links to it**, password
+  signup included — Google vouching for the address is exactly the proof the
+  activation email would have asked for. Refusing instead would make "Sign in
+  with Google" a dead end for every user who signed up the normal way. An
+  account that never clicked its activation link is activated on the spot.
+- **A suspended account is refused here**, not one request later by
+  `SuspensionAwareJWTAuthentication` — otherwise a moderation decision would
+  look like a broken login.
+
+New accounts get a handle derived from the email's local part
+(`j.p+news@gmail.com` → `jpnews`), disambiguated with a random suffix rather
+than a counter, since `alice-2` advertises that `alice` exists. They also get no
+password: `/account` then offers **Set a password** without asking for a current
+one, and the API applies the same rule.
+
+`next` survives the round trip on the server, parked with the OAuth state — it
+never travels through the URL the browser carries to Google, and it is
+re-validated on the way back, so `//evil.example` and friends collapse to `/`.
+
+### Activation and password-reset email
+
+Real SMTP, in every environment. There is no dev mail catcher: these two
+messages are the only mail the platform sends, both are worthless undelivered,
+and a container that accepts everything is a good way to ship a configuration
+nobody has ever exercised.
+
+```dotenv
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=1
+EMAIL_HOST_USER=you@example.com
+EMAIL_HOST_PASSWORD=<16-character App Password>
+```
+
+For Gmail that password is an **App Password**, not the account password —
+Google stopped accepting those over SMTP in May 2022 and refuses them with a
+bare `535` that explains nothing. Create one at *myaccount.google.com → Security
+→ App passwords*; it requires 2-Step Verification. `DEFAULT_FROM_EMAIL` defaults
+to `EMAIL_HOST_USER`, because Gmail rewrites or rejects a `From` that is not the
+authenticated mailbox.
+
+No account to hand? `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`
+prints each message, activation link included, to the backend log.
+
+Sending happens in the **Celery worker**, not in the request: a real provider's
+handshake and delivery is seconds, all of it otherwise spent holding the signup
+open, and a provider hiccup used to turn a created account into a 500 with no
+way to resend. So an SMTP failure appears here, never in the API response:
+
+```bash
+docker compose logs -f celery-worker | grep -i send_email
+```
+
+The task retries three times over 30/60/120 seconds. `EMAIL_ASYNC=0` sends
+inline instead, which is easier to follow while debugging a new configuration.
 
 ---
 
@@ -1016,7 +1139,6 @@ Deliberately non-default so this stack can share a server with other projects.
 | PostgreSQL | 5459 | |
 | Redis | 6402 | |
 | Flower | 5574 | Celery queue monitor |
-| Mailpit | 8045 | web UI |
 | MinIO S3 API | **9010** | the browser fetches HLS from here |
 | MinIO console | 9011 | |
 | RTMP ingest (MediaMTX) | **1936** | OBS publishes here |
@@ -1049,6 +1171,11 @@ Everything is in `.env.example` with comments. The ones that matter most:
 | `ADS_ENABLED` | `1` | Master switch for ad selection. |
 | `ADS_MIN_DURATION_FOR_MIDROLL` | `120` | Videos shorter than this get no mid-roll. |
 | `JWT_ACCESS_MINUTES` / `JWT_REFRESH_DAYS` | 15 / 7 | Refresh tokens rotate and blacklist on use. |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | — | Both blank turns Google sign-in off, button included. |
+| `GOOGLE_OAUTH_REDIRECT_URI` | `FRONTEND_URL` + `/auth/google/callback` | Must match the Google credential byte for byte. |
+| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | — | Without these no activation email is delivered. Gmail needs an App Password. |
+| `EMAIL_BACKEND` | SMTP | `…console.EmailBackend` prints mail to the log instead of sending it. |
+| `EMAIL_ASYNC` | `1` | `0` sends inline, so SMTP errors surface in the API response. |
 
 ---
 

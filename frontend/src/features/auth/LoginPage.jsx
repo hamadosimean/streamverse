@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import AuthCard from '@/features/auth/AuthCard'
+import GoogleButton, { AuthDivider } from '@/features/auth/GoogleButton'
 import { Button, Field } from '@/components/ui'
 import { apiErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -15,6 +16,11 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const login = useAuthStore((state) => state.login)
+
+  // Where the user was headed before the auth gate sent them here. Google takes
+  // the browser off-site and back, so this has to survive the round trip on the
+  // server rather than in router state, which does not.
+  const next = location.state?.from?.pathname || '/'
 
   const schema = z.object({
     email: z.string().min(1, t('validation.required')).email(t('validation.email')),
@@ -32,7 +38,7 @@ export default function LoginPage() {
     try {
       await login(email, password)
       toast.success(t('auth.loggedIn'))
-      navigate(location.state?.from?.pathname || '/', { replace: true })
+      navigate(next, { replace: true })
     } catch (error) {
       // Djoser answers a bad pair with a generic 401 — surface it on the form
       // rather than as a toast that disappears.
@@ -53,6 +59,9 @@ export default function LoginPage() {
         </>
       }
     >
+      <GoogleButton next={next} />
+      <AuthDivider />
+
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <Field label={t('auth.email')} error={errors.email?.message} required>
           <input

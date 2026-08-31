@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import AuthCard from '@/features/auth/AuthCard'
+import GoogleButton, { AuthDivider } from '@/features/auth/GoogleButton'
 import { Button, Field } from '@/components/ui'
 import { apiErrorMessage, apiFieldErrors } from '@/lib/api'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -72,7 +73,7 @@ export default function RegisterPage() {
           <p className="text-emerald-300">{t('auth.registered')}</p>
           <p className="flex items-start gap-2 rounded-lg border border-ink-700 bg-ink-800 p-3 text-xs text-ink-300">
             <Info className="mt-0.5 size-4 shrink-0 text-brand-400" aria-hidden />
-            {t('auth.registeredMailpit')}
+            {t('auth.registeredSpam')}
           </p>
           <Button className="w-full" onClick={() => navigate('/login')}>
             {t('auth.submitLogin')}
@@ -95,6 +96,11 @@ export default function RegisterPage() {
         </>
       }
     >
+      {/* Same button as on the login screen: with Google there is no
+          difference between signing up and signing in. */}
+      <GoogleButton />
+      <AuthDivider />
+
       <form onSubmit={handleSubmit(onSubmit)} noValidate>
         <Field label={t('auth.email')} error={errors.email?.message} required>
           <input type="email" autoComplete="email" className="sv-input" {...register('email')} />

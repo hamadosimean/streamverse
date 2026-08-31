@@ -32,6 +32,25 @@ export const useAuthStore = create()(
         return get().user
       },
 
+      /**
+       * Finish a Google sign-in.
+       *
+       * The backend does the exchange and answers with the same JWT pair a
+       * password login yields, so everything downstream — the interceptor, the
+       * refresh rotation, the suspension check — is unchanged. It also returns
+       * where to land, having re-validated it after the round trip.
+       */
+      async loginWithGoogle(code, state) {
+        const { data } = await api.post(
+          '/auth/google/callback/',
+          { code, state },
+          { skipAuth: true },
+        )
+        tokenStorage.set({ access: data.access, refresh: data.refresh })
+        await get().fetchUser()
+        return { user: get().user, created: data.created, next: data.next }
+      },
+
       async register(payload) {
         const { data } = await api.post('/auth/users/', payload, { skipAuth: true })
         return data

@@ -178,18 +178,39 @@ The default MinIO setup is suitable for a single-server deployment. For higher a
 
 ## 6. Email
 
-The default `mailpit` container is for development only. Replace it with a real SMTP provider:
+SMTP is configured from `.env` alone — every `EMAIL_*` variable is forwarded to
+the containers, and there is no local catcher to switch off.
 
 ```dotenv
-EMAIL_HOST=smtp.sendgrid.net
+# Gmail / Google Workspace
+EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=1
-EMAIL_HOST_USER=apikey
-EMAIL_HOST_PASSWORD=<sendgrid-api-key>
-DEFAULT_FROM_EMAIL=no-reply@streamverse.example.com
+EMAIL_HOST_USER=you@yourdomain.com
+EMAIL_HOST_PASSWORD=<16-character App Password>
+DEFAULT_FROM_EMAIL=you@yourdomain.com
 ```
 
-Remove the `mailpit` service from `docker-compose.yml` in production.
+`EMAIL_HOST_PASSWORD` is an **App Password**, not the account password: Google
+stopped accepting those over SMTP in May 2022 and refuses them with a bare
+`535`. Create one at *myaccount.google.com → Security → App passwords* (2-Step
+Verification must be on first). Gmail also rewrites or rejects a `From` that is
+not the authenticated mailbox, so keep `DEFAULT_FROM_EMAIL` equal to
+`EMAIL_HOST_USER` or one of its verified aliases.
+
+Any other provider works the same way — port 587 with `EMAIL_USE_TLS=1`, or port
+465 with `EMAIL_USE_SSL=1` instead. Never both.
+
+Mail is sent by the **Celery worker**, not in the request, so a failure never
+reaches the API response. Verify a deployment by signing up and watching:
+
+```bash
+docker compose logs -f celery-worker | grep -i send_email
+```
+
+`530 Authentication Required` means the credentials are empty; `535` means the
+password is not an App Password. Sending three times over 30/60/120 seconds
+before giving up is the task's own retry.
 
 ---
 
@@ -389,11 +410,12 @@ See [CONFIGURATION.md §21](./CONFIGURATION.md#21-secrets-inventory).
 - [ ] `SECURE_HSTS_SECONDS` set **only** once TLS is permanent — it is
       effectively irreversible for its duration
 - [ ] Only 80/443 (and 1936 if streamers are external) reachable from the
-      internet; 5459, 6402, 5574, 8045, 9010 and 9011 firewalled
-- [ ] `mailpit` removed and real SMTP configured — `EMAIL_HOST` and
-      `EMAIL_PORT` are pinned to Mailpit in the anchor, and
-      `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `EMAIL_USE_TLS` are not
-      forwarded at all, so this needs a `docker-compose.yml` edit
+      internet; 5459, 6402, 5574, 9010 and 9011 firewalled
+- [ ] `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` set and a real signup verified
+      in the worker log — §6
+- [ ] If Google sign-in is on: the production redirect URI registered on the
+      Google credential byte for byte, and `GOOGLE_OAUTH_CLIENT_SECRET` holding
+      the secret (`GOCSPX-…`) rather than a second copy of the client id
 
 **Capacity:**
 

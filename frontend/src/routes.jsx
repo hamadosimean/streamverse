@@ -32,6 +32,8 @@ const AccountPage = lazy(() => import('@/features/account/AccountPage'))
 const LoginPage = lazy(() => import('@/features/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/RegisterPage'))
 const ActivatePage = lazy(() => import('@/features/auth/ActivatePage'))
+const GoogleCallbackPage = lazy(() =>
+  import('@/features/auth/GoogleCallbackPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/features/auth/ResetPasswordPage'))
 const NotFoundPage = lazy(() => import('@/features/NotFoundPage'))
@@ -132,6 +134,10 @@ export default function AppRoutes() {
               }
             />
             <Route path="activate/:uid/:token" element={<ActivatePage />} />
+            {/* Google's redirect target. Deliberately outside GuestOnly: a
+                session that is already signed in must still be allowed to
+                finish an exchange rather than be bounced away from it. */}
+            <Route path="auth/google/callback" element={<GoogleCallbackPage />} />
             <Route path="password/forgot" element={<ForgotPasswordPage />} />
             <Route path="password/reset/:uid/:token" element={<ResetPasswordPage />} />
 

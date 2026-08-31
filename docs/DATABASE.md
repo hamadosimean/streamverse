@@ -82,7 +82,7 @@ Primary key: `BIGINT` (auto, Django default)
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | bigint | NO | PK, auto-increment |
-| `password` | varchar(128) | NO | Argon2/PBKDF2 hash |
+| `password` | varchar(128) | NO | Argon2/PBKDF2 hash. Unusable (`!`-prefixed) for an account created through Google, until the user sets one |
 | `last_login` | timestamptz | YES | |
 | `is_superuser` | boolean | NO | |
 | `email` | varchar(254) | NO | UNIQUE, login field |
@@ -94,7 +94,7 @@ Primary key: `BIGINT` (auto, Django default)
 | `location` | varchar(80) | NO | Free text, shown on the channel header |
 | `website_url` | varchar(200) | NO | `http`/`https` only — it becomes an anchor |
 | `role` | varchar(16) | NO | `user` / `moderator` / `admin` |
-| `is_active` | boolean | NO | True after email activation |
+| `is_active` | boolean | NO | True after email activation — or immediately, for a Google sign-in, which has already proven the address |
 | `is_staff` | boolean | NO | Django admin access |
 | `is_suspended` | boolean | NO | Moderation flag |
 | `suspension_reason` | text | NO | |
@@ -106,6 +106,29 @@ Primary key: `BIGINT` (auto, Django default)
 | `updated_at` | timestamptz | NO | |
 
 Indexes: `email` (unique), `username` (unique), `role`, `is_suspended`
+
+#### `accounts_socialaccount`
+
+One row per external identity linked to a user. Its own table rather than a
+`google_sub` column on `accounts_user`: a second provider costs a row instead of
+a migration, and the link carries its own history.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | bigint | NO | PK, auto-increment |
+| `user_id` | bigint | NO | FK → `accounts_user`, `ON DELETE CASCADE` |
+| `provider` | varchar(20) | NO | `google` |
+| `subject` | varchar(255) | NO | The provider's stable id (`sub`). **This is what a sign-in matches on**, never the email, which its owner can change |
+| `email` | varchar(254) | NO | The address the provider reported when the link was made. Kept for support; never used to authenticate |
+| `last_used_at` | timestamptz | YES | Updated on each sign-in |
+| `created_at` | timestamptz | NO | |
+| `updated_at` | timestamptz | NO | |
+
+Constraints:
+- `uniq_social_provider_subject` — UNIQUE (`provider`, `subject`). Without it two
+  accounts could both claim the same Google login.
+- `uniq_social_provider_user` — UNIQUE (`provider`, `user_id`). A user links each
+  provider at most once.
 
 ---
 

@@ -42,7 +42,11 @@ cd streamverse
 
 # 2. Copy and configure the environment
 cp .env.example .env
-# Edit .env — at minimum set DJANGO_SECRET_KEY
+# Edit .env — at minimum set DJANGO_SECRET_KEY.
+# Signup sends a real activation email, so also set EMAIL_HOST_USER and
+# EMAIL_HOST_PASSWORD, or set
+#   EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+# to have the links printed to the backend log instead.
 
 # 3. Start everything
 docker compose up --build
@@ -50,7 +54,6 @@ docker compose up --build
 # 4. The app is now at http://localhost:8110
 #    Django Admin:   http://localhost:8110/admin/   (admin / admin123)
 #    Flower:         http://localhost:5574
-#    Mailpit:        http://localhost:8045
 #    MinIO console:  http://localhost:9011
 ```
 
@@ -67,7 +70,7 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # Start the dependency services via Docker
-docker compose up db redis minio mailpit
+docker compose up db redis minio
 
 # Run Django
 python manage.py migrate

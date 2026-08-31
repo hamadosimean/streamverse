@@ -44,7 +44,7 @@ environment-driven; `backend/config/settings.py` is the single reader.
    ▼
 docker-compose.yml
    ├─ x-backend-env anchor  ──► backend · celery-worker · celery-beat · flower
-   ├─ service environment:  ──► db · minio · mailpit · mediamtx · nginx
+   ├─ service environment:  ──► db · minio · mediamtx · nginx
    └─ build args:           ──► frontend (baked into the JS bundle)
         │
         ▼
@@ -183,6 +183,41 @@ Fixed in code: refresh-token rotation with blacklist-after-rotation, `Bearer`
 header type, `UPDATE_LAST_LOGIN`, email as the login field, activation email
 required on signup, and `SuspensionAwareJWTAuthentication` — which re-checks
 suspension on **every** request, not just at login.
+
+### Google sign-in
+
+Optional. With no credentials the feature is simply absent:
+`GET /api/auth/providers/` reports `{"google": {"enabled": false}}` and the
+frontend renders no button rather than one that can only fail.
+
+| Variable | Default | Fwd | Effect |
+|---|---|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | — | ✅ | Web-application OAuth client id. Blank turns the feature off |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | — | ✅ | The matching secret, `GOCSPX-…`. Never leaves the backend |
+| `GOOGLE_OAUTH_REDIRECT_URI` | `FRONTEND_URL` + `/auth/google/callback` | ✅ | Blank means "derive it". Must match the Google credential **byte for byte** |
+| `GOOGLE_OAUTH_STATE_TTL_SECONDS` | `600` | ➖ | How long a started sign-in stays resumable |
+| `GOOGLE_OAUTH_TIMEOUT_SECONDS` | `10` | ➖ | Timeout on the calls to Google |
+
+Register the callback under APIs & Services → Credentials → *Web application*:
+
+```
+Authorized JavaScript origins:  https://your-domain
+Authorized redirect URIs:       https://your-domain/auth/google/callback
+```
+
+Google compares the redirect URI as an exact string; a trailing slash, `http`
+against `https`, or a different port is a rejected sign-in with no warning. Two
+failure modes worth recognising: `invalid_client` from the token exchange means
+`GOOGLE_OAUTH_CLIENT_SECRET` is wrong — most often a second copy of the client
+id — and `redirect_uri_mismatch` on Google's own screen means the URI above is
+not registered.
+
+Fixed in code: the authorization-code flow with PKCE (`S256`), single-use state
+parked in Redis, `openid email profile` and nothing else, `prompt=select_account`
+so a user signed into one Google account can still choose another, and
+verification of the returned ID token's signature, issuer, audience and expiry.
+No Google JavaScript is loaded by the frontend — see `apps/accounts/oauth.py`
+for why that matters to the CSP.
 
 ---
 
@@ -417,18 +452,42 @@ Live chat is rate-limited by `LIVE_CHAT_MIN_INTERVAL_SECONDS` in the consumer.
 
 ## 16. Email
 
+Real SMTP in every environment. There is no local catcher: activation and
+password reset are the only two messages the platform sends, both are worthless
+undelivered, and a container that accepts everything is a good way to ship a
+configuration nobody has ever exercised.
+
 | Variable | Default | Fwd | Effect |
 |---|---|---|---|
-| `EMAIL_HOST` | `mailpit` | ✅ (pinned) | |
-| `EMAIL_PORT` | `1025` | ✅ (pinned) | |
-| `EMAIL_USE_TLS` | `False` | ➖ | |
-| `DEFAULT_FROM_EMAIL` | `no-reply@streamverse.local` | ✅ | |
+| `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` | ✅ | Set to `…console.EmailBackend` to print messages to the backend log instead of sending them |
+| `EMAIL_HOST` | `smtp.gmail.com` | ✅ | |
+| `EMAIL_PORT` | `587` | ✅ | 587 = STARTTLS, 465 = implicit TLS |
+| `EMAIL_HOST_USER` | — | ✅ | Full address. Also the fallback for `DEFAULT_FROM_EMAIL` |
+| `EMAIL_HOST_PASSWORD` | — | ✅ | For Gmail, an **App Password** — see below |
+| `EMAIL_USE_TLS` | `True` | ✅ | STARTTLS. Mutually exclusive with `EMAIL_USE_SSL`; Django raises if both are on |
+| `EMAIL_USE_SSL` | `False` | ✅ | Implicit TLS, for port 465 |
+| `EMAIL_TIMEOUT` | `15` | ✅ | Seconds. Without it a provider that stops answering holds the socket until the OS gives up |
+| `EMAIL_ASYNC` | `True` | ✅ | Send through the Celery worker. `0` sends inline — slower, but errors land in the API response instead of the worker log |
+| `DEFAULT_FROM_EMAIL` | `EMAIL_HOST_USER` | ✅ | Gmail rewrites or rejects a From that is not the authenticated mailbox |
 
-Mailpit is a development catcher — it accepts anything and delivers nothing.
-Activation emails land at http://localhost:8045. Pointing at a real SMTP
-provider requires forwarding `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` and
-`EMAIL_USE_TLS` in `docker-compose.yml`, which the file does not do today; see
-[DEPLOYMENT.md §6](./DEPLOYMENT.md).
+**Gmail.** `EMAIL_HOST_PASSWORD` is not the account password — Google stopped
+accepting those over SMTP in May 2022 and refuses them with a bare `535` that
+explains nothing. Turn on 2-Step Verification, then create an App Password at
+*myaccount.google.com → Security → App passwords* and use its 16 characters.
+
+**Delivery is asynchronous.** `apps.accounts.emails` renders the message in the
+request and queues `accounts.send_email` on the `default` queue; the worker
+sends it and retries three times (30s, 60s, 120s) before giving up. So a signup
+returns in milliseconds regardless of how slow the provider is, and an SMTP
+failure appears in the **worker** log, not in the API response:
+
+```bash
+docker compose logs -f celery-worker | grep -i send_email
+```
+
+A `530 Authentication Required` there means `EMAIL_HOST_USER` /
+`EMAIL_HOST_PASSWORD` are empty; a `535` means the password is not an App
+Password.
 
 ---
 
@@ -443,7 +502,6 @@ These affect only the host side of the mapping; container ports are fixed.
 | `POSTGRES_HOST_PORT` | `5459` | 5432 | PostgreSQL |
 | `REDIS_HOST_PORT` | `6402` | 6379 | Redis |
 | `FLOWER_HOST_PORT` | `5574` | 5555 | Flower |
-| `MAILPIT_HOST_PORT` | `8045` | 8025 | Mailpit UI |
 | `MINIO_API_HOST_PORT` | `9010` | 9000 | MinIO S3 API — **the browser fetches HLS here** |
 | `MINIO_CONSOLE_HOST_PORT` | `9011` | 9001 | MinIO console |
 | `RTMP_HOST_PORT` | `1936` | 1935 | MediaMTX RTMP ingest |
@@ -545,16 +603,12 @@ resolves every variable in the anchor to a non-empty value):
 | `SITE_URL` / `SITE_NAME` were forwarded without a fallback, so omitting them overrode the `settings.py` defaults with empty strings | Compose fallbacks added; both keys added to `.env` and `.env.prod` |
 | `.env.prod` was not gitignored despite holding a real secret key and passwords | `.gitignore` now ignores `.env` and `.env.*`, re-admitting `.env.example` |
 | `LIVE_RECORDINGS_DIR` was required by compose but absent from `.env.example` | Documented in `.env.example`, and given a `/data/recordings` fallback |
+| `EMAIL_HOST` / `EMAIL_PORT` were pinned to `mailpit:1025` in the anchor and `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` were never forwarded, so no deployment could send real mail without editing `docker-compose.yml` | Mailpit removed; every `EMAIL_*` variable is a pass-through with a fallback |
+| `DJOSER["EMAIL"]` pointed at `email/activation.html` and `email/password_reset.html`, neither of which existed — every activation and reset raised `TemplateDoesNotExist` | Both templates written, sharing `email/_layout.html` |
 
 **Still open**
 
-**1. Real SMTP needs three more variables wired.** `EMAIL_HOST_USER`,
-`EMAIL_HOST_PASSWORD` and `EMAIL_USE_TLS` are read by `settings.py` but are not
-in the `x-backend-env` anchor, and `EMAIL_HOST` / `EMAIL_PORT` are pinned to
-`mailpit:1025`. Moving off Mailpit means editing `docker-compose.yml`, not just
-`.env`. See [DEPLOYMENT.md §6](./DEPLOYMENT.md).
-
-**2. A handful of settings are reachable only by editing `settings.py`.** They
+**1. A handful of settings are reachable only by editing `settings.py`.** They
 are read from the environment but appear in neither `.env.example` nor the
 compose anchor, so under Docker their defaults always apply:
 `SHORTS_MAX_DURATION_SECONDS` · `SHORTS_MAX_ASPECT_RATIO` · `MINIO_REGION` ·
@@ -562,7 +616,7 @@ compose anchor, so under Docker their defaults always apply:
 `CELERY_TASK_SOFT_TIME_LIMIT` · `SECURE_HSTS_INCLUDE_SUBDOMAINS` ·
 `SECURE_HSTS_PRELOAD`. Add them to both files if you need to tune them.
 
-**3. Defaults are now stated twice.** Each forwarded variable carries a fallback
+**2. Defaults are now stated twice.** Each forwarded variable carries a fallback
 in `docker-compose.yml` *and* a default in `settings.py`. That is the price of
 closing the empty-string hole; when you change one, change the other.
 

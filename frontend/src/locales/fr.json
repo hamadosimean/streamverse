@@ -230,7 +230,6 @@
     "loggedIn": "Connexion reussie.",
     "loggedOut": "Vous etes deconnecte.",
     "registered": "Compte cree. Consultez votre boite mail pour l'activer.",
-    "registeredMailpit": "En developpement, les e-mails arrivent dans Mailpit (http://localhost:8045).",
     "activating": "Activation de votre compte...",
     "activated": "Compte active. Vous pouvez vous connecter.",
     "activationFailed": "Ce lien d'activation est invalide ou a expire.",
@@ -242,7 +241,16 @@
     "resetSent": "Si un compte existe pour cette adresse, un lien vient d'etre envoye.",
     "resetNewPassword": "Nouveau mot de passe",
     "resetSubmit": "Definir le nouveau mot de passe",
-    "resetDone": "Mot de passe mis a jour. Connectez-vous."
+    "resetDone": "Mot de passe mis a jour. Connectez-vous.",
+    "or": "ou",
+    "continueWithGoogle": "Continuer avec Google",
+    "googleConnecting": "Redirection vers Google...",
+    "googleFinishing": "Finalisation de la connexion...",
+    "googleCancelled": "Connexion Google annulee.",
+    "googleFailed": "La connexion Google a echoue. Reessayez.",
+    "welcomeNew": "Bienvenue ! Votre compte est pret.",
+    "backToLogin": "Retour a la connexion",
+    "registeredSpam": "L'e-mail arrive en general en moins d'une minute. Pensez a regarder dans les indesirables."
   },
   "account": {
     "title": "Mon profil",
@@ -276,7 +284,10 @@
     "bioHint": "Affichee en tete de votre chaine.",
     "location": "Localisation",
     "locationPlaceholder": "Paris, France",
-    "website": "Site web"
+    "website": "Site web",
+    "setPassword": "Definir un mot de passe",
+    "setPasswordHint": "Vous vous connectez avec Google. Definissez un mot de passe si vous voulez aussi pouvoir vous connecter avec votre adresse e-mail.",
+    "googleLinked": "Connecte avec Google"
   },
   "validation": {
     "required": "Ce champ est obligatoire.",

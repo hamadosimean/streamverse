@@ -1,0 +1,31 @@
+{% comment %}
+Djoser's ActivationEmail. It puts `uid`, `token` and a pre-formatted `url`
+(settings.DJOSER["ACTIVATION_URL"]) in the context; `protocol` and `domain` come
+from apps.accounts.emails, which points them at the React app rather than at the
+Django host.
+
+The three block names are fixed by templated_mail and must stay at the top
+level of this file — see email/_layout.html for why nothing here extends.
+{% endcomment %}
+{% block subject %}Activez votre compte {{ site_name }}{% endblock %}
+
+{% block text_body %}
+Bonjour {{ user.display_name|default:user.username }},
+
+Votre compte {{ site_name }} est cree. Il ne manque qu'une confirmation que
+cette adresse est bien la votre.
+
+Activez-le ici :
+{{ protocol }}://{{ domain }}/{{ url }}
+
+Si vous n'avez pas cree ce compte, ignorez ce message : rien ne sera active.
+{% endblock %}
+
+{% block html_body %}
+{% with title="Activez votre compte" cta_label="Activer mon compte" %}
+{% with action_url=protocol|add:"://"|add:domain|add:"/"|add:url %}
+{% with intro="Votre compte "|add:site_name|add:" est cree. Il ne manque qu'une confirmation que cette adresse est bien la votre." %}
+{% with fallback="Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur. Si vous n'avez pas cree ce compte, ignorez ce message." %}
+{% include "email/_layout.html" %}
+{% endwith %}{% endwith %}{% endwith %}{% endwith %}
+{% endblock %}

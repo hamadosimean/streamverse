@@ -140,12 +140,24 @@ function ProfileForm() {
   )
 }
 
+/**
+ * Change the password — or set the first one.
+ *
+ * An account created through Google has no password at all, so asking for the
+ * current one would be an unanswerable question and would leave the user unable
+ * to ever sign in by e-mail. The server applies the same rule; this only shapes
+ * what is asked for.
+ */
 function PasswordForm() {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.user)
+  const hasPassword = user?.has_usable_password !== false
 
   const schema = z
     .object({
-      current_password: z.string().min(1, t('validation.required')),
+      current_password: hasPassword
+        ? z.string().min(1, t('validation.required'))
+        : z.string().optional(),
       new_password: z.string().min(8, t('validation.passwordMin')),
       confirm_password: z.string().min(1, t('validation.required')),
     })
@@ -167,6 +179,9 @@ function PasswordForm() {
       await api.post('/accounts/me/password/', { current_password, new_password })
       toast.success(t('account.passwordChanged'))
       reset()
+      // The account now has a usable password, which changes what this form
+      // asks for next time.
+      if (!hasPassword) await useAuthStore.getState().fetchUser()
     } catch (error) {
       const fields = apiFieldErrors(error)
       if (fields.current_password) {
@@ -183,17 +198,25 @@ function PasswordForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="sv-card p-5" noValidate>
       <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <KeyRound className="size-4 text-brand-400" aria-hidden />
-        {t('account.changePassword')}
+        {hasPassword ? t('account.changePassword') : t('account.setPassword')}
       </h2>
 
-      <Field label={t('account.currentPassword')} error={errors.current_password?.message} required>
-        <input
-          type="password"
-          autoComplete="current-password"
-          className="sv-input"
-          {...register('current_password')}
-        />
-      </Field>
+      {hasPassword ? (
+        <Field
+          label={t('account.currentPassword')}
+          error={errors.current_password?.message}
+          required
+        >
+          <input
+            type="password"
+            autoComplete="current-password"
+            className="sv-input"
+            {...register('current_password')}
+          />
+        </Field>
+      ) : (
+        <p className="mb-4 text-xs text-ink-400">{t('account.setPasswordHint')}</p>
+      )}
 
       <Field label={t('account.newPassword')} error={errors.new_password?.message} required>
         <input

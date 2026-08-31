@@ -51,6 +51,78 @@ All auth endpoints are provided by **Djoser** + **SimpleJWT**.
 
 Access tokens are short-lived. Refresh tokens rotate on each use and are blacklisted on logout.
 
+### Sign in with Google
+
+OAuth 2.0 authorization code + PKCE, driven from the backend. No Google
+JavaScript is loaded by the SPA — see the README for why. All three endpoints
+are public; the two below the first are throttled under the `auth` scope.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/auth/providers/` | Which sign-in providers this deployment offers |
+| GET | `/api/auth/google/authorize/` | Start the flow — returns the URL to send the browser to |
+| POST | `/api/auth/google/callback/` | Finish it — code + state in, a JWT pair out |
+
+**`GET /api/auth/providers/`** → `200`
+
+```json
+{ "google": { "enabled": true } }
+```
+
+Ask before rendering the button: `enabled` is `false` when the deployment has no
+Google credentials, and every call below then answers `503 not_configured`.
+
+**`GET /api/auth/google/authorize/?next=/studio`** → `200`
+
+```json
+{ "authorization_url": "https://accounts.google.com/o/oauth2/v2/auth?..." }
+```
+
+JSON rather than a `302`, because the caller is `fetch`/axios: a redirect here
+would be followed by the XHR layer and the browser would refuse to read Google's
+cross-origin answer. Navigate to the URL instead.
+
+`next` is where to land afterwards. It is validated to a same-origin path — an
+absolute URL, `//evil.example` or a backslash trick collapses to `/` — and then
+stored server-side with the OAuth state, so it never travels through Google.
+
+**`POST /api/auth/google/callback/`**
+
+```json
+{ "code": "4/0Ab...", "state": "kQ8..." }
+```
+
+→ `200`
+
+```json
+{
+  "access": "eyJhbGci...",
+  "refresh": "eyJhbGci...",
+  "created": true,
+  "next": "/studio"
+}
+```
+
+`created` is `true` only on the sign-in that created the account. The tokens are
+the same pair `/api/auth/jwt/create/` returns.
+
+POST, even though the browser arrives back at the callback route via a redirect:
+the SPA reads its own query string and posts it here, which keeps the
+authorization code out of the `Referer` header and out of any access log that
+records query strings.
+
+Errors carry the standard envelope with a stable `code`:
+
+| `code` | Status | Meaning |
+|---|---|---|
+| `not_configured` | 503 | No `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` on this deployment |
+| `invalid_state` | 400 | Unknown, expired or already-used state — the attempt must be restarted. States are single use |
+| `exchange_failed` | 400 | Google refused the code (reused, expired, or a `redirect_uri` mismatch) |
+| `invalid_token` | 400 | The returned ID token failed signature, issuer, audience or expiry checks |
+| `email_unverified` | 400 | The Google account's address is not verified |
+| `account_suspended` | 403 | The matched StreamVerse account is suspended |
+| `provider_unreachable` | 502 | Google could not be reached |
+
 ---
 
 ## 2. Accounts
@@ -59,7 +131,7 @@ Access tokens are short-lived. Refresh tokens rotate on each use and are blackli
 |---|---|---|---|
 | GET | `/api/accounts/me/` | Auth | Current user profile with channel info |
 | PATCH | `/api/accounts/me/` | Auth | Update the text profile (see below) |
-| POST | `/api/accounts/me/password/` | Auth | Change password (`current_password`, `new_password`) |
+| POST | `/api/accounts/me/password/` | Auth | Change password (`current_password`, `new_password`). `current_password` is required only when the account has one — an account created through Google does not |
 | PUT | `/api/accounts/me/avatar/` | Auth | Replace the profile picture (multipart) |
 | DELETE | `/api/accounts/me/avatar/` | Auth | Remove the profile picture |
 | PUT | `/api/accounts/me/banner/` | Auth | Replace the channel banner (multipart) |
@@ -83,7 +155,12 @@ Access tokens are short-lived. Refresh tokens rotate on each use and are blackli
 
 `email`, `username`, `role`, `is_active` and `is_suspended` are read-only — signup and moderation own them. `website_url` must be `http`/`https`: it is rendered as an anchor on a public page.
 
-Every write here answers with the **full** user record, not the patch, so a client can replace its cached copy instead of merging.
+Every write here answers with the **full** user record, not the patch, so a client can replace its cached copy instead of merging. Two read-only fields on it describe how the account signs in:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `has_usable_password` | bool | `false` for an account that only ever signed in through a provider. The account screen uses it to offer *Set a password* without asking for a current one |
+| `social_providers` | string[] | Linked external identities, e.g. `["google"]` |
 
 ### Profile images
 

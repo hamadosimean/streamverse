@@ -35,8 +35,13 @@ flower==2.0.1
 django-storages==1.14.6
 boto3==1.43.68
 
+# Auth
+# Verifies the ID token Google returns; nothing else here talks to a
+# Google API, so the base package (no extras) is all that is needed.
+google-auth==2.57.0
+
 # Misc
-requests==2.34.2          # MediaMTX control-API reconciliation
+requests==2.34.2          # MediaMTX reconciliation + Google token exchange
 django-environ==0.14.0
 django-cleanup==9.0.0
 python-magic==0.4.27

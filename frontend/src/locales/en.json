@@ -230,7 +230,6 @@
     "loggedIn": "Signed in.",
     "loggedOut": "You have been signed out.",
     "registered": "Account created. Check your inbox to activate it.",
-    "registeredMailpit": "In development, emails land in Mailpit (http://localhost:8045).",
     "activating": "Activating your account...",
     "activated": "Account activated. You can sign in now.",
     "activationFailed": "This activation link is invalid or has expired.",
@@ -242,7 +241,16 @@
     "resetSent": "If an account exists for that address, a link has just been sent.",
     "resetNewPassword": "New password",
     "resetSubmit": "Set the new password",
-    "resetDone": "Password updated. Please sign in."
+    "resetDone": "Password updated. Please sign in.",
+    "or": "or",
+    "continueWithGoogle": "Continue with Google",
+    "googleConnecting": "Redirecting to Google...",
+    "googleFinishing": "Finishing sign-in...",
+    "googleCancelled": "Google sign-in cancelled.",
+    "googleFailed": "Google sign-in failed. Please try again.",
+    "welcomeNew": "Welcome! Your account is ready.",
+    "backToLogin": "Back to sign-in",
+    "registeredSpam": "The email usually arrives within a minute. Remember to check your spam folder."
   },
   "account": {
     "title": "My profile",
@@ -276,7 +284,10 @@
     "bioHint": "Shown at the top of your channel.",
     "location": "Location",
     "locationPlaceholder": "Paris, France",
-    "website": "Website"
+    "website": "Website",
+    "setPassword": "Set a password",
+    "setPasswordHint": "You sign in with Google. Set a password if you also want to sign in with your e-mail address.",
+    "googleLinked": "Signed in with Google"
   },
   "validation": {
     "required": "This field is required.",

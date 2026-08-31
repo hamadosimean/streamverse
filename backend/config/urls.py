@@ -11,6 +11,9 @@ from drf_spectacular.views import (
 from apps.core.views import HealthView
 
 api_patterns = [
+    # Sign-in providers. Declared before Djoser's `auth/` include so the routes
+    # are read in the order they are written, not resolved by luck.
+    path("auth/", include("apps.accounts.oauth_urls")),
     # Djoser: signup, activation, password reset, /users/me/
     path("auth/", include("djoser.urls")),
     path("auth/", include("djoser.urls.jwt")),

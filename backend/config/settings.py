@@ -467,14 +467,74 @@ CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 # --------------------------------------------------------------------------
-# Email (Mailpit in dev)
+# Email — real SMTP, in every environment.
+#
+# There is no dev catcher any more. Activation and password reset are the only
+# two messages the platform sends and both are worthless if they do not arrive,
+# so a misconfiguration should surface on the first signup rather than hide
+# behind a container that accepts everything and delivers nothing.
+#
+# GMAIL: EMAIL_HOST_PASSWORD must be a 16-character App Password
+# (myaccount.google.com -> Security -> App passwords), which in turn requires
+# 2-Step Verification on the account. Google stopped accepting ordinary account
+# passwords over SMTP in May 2022, and refuses them with a bare `535` that says
+# nothing about why — it is the single most common reason mail "never sends".
+#
+# Set EMAIL_BACKEND to django.core.mail.backends.console.EmailBackend to print
+# messages to the log instead of sending them, when working without an account.
 # --------------------------------------------------------------------------
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = env("EMAIL_HOST", default="mailpit")
-EMAIL_PORT = env.int("EMAIL_PORT", default=1025)
-EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=False)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@streamverse.local")
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+# 587 is STARTTLS (EMAIL_USE_TLS), 465 is implicit TLS (EMAIL_USE_SSL). They are
+# mutually exclusive; Django raises if both are on.
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+# Without a timeout, a provider that accepts the TCP connection and then goes
+# quiet holds the socket — and, before the queue below, the request — open until
+# the OS gives up, which can be minutes.
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
+# Gmail rewrites (or rejects) a From that is not the authenticated mailbox or one
+# of its verified aliases, so the sending account is the right default.
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="") or (
+    EMAIL_HOST_USER or "no-reply@streamverse.local"
+)
+# Outbound mail goes through Celery (apps.accounts.tasks.send_email). Turning
+# this off sends inline, which is simpler to debug and blocks the request for as
+# long as the provider takes to answer.
+EMAIL_ASYNC = env.bool("EMAIL_ASYNC", default=True)
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:8110")
+
+# --------------------------------------------------------------------------
+# Google sign-in (OAuth 2.0 authorization code + PKCE)
+#
+# Optional: with no client id and secret, /api/auth/providers/ reports Google as
+# disabled and the frontend simply does not render the button. See
+# apps/accounts/oauth.py for why this is the redirect flow rather than Google's
+# `gsi/client` script, and docs/CONFIGURATION.md for how to obtain the pair.
+#
+# The redirect URI is a route in the SPA, and it must be registered byte for byte
+# as an "Authorized redirect URI" on the Google credential — Google compares it
+# as a string, so a trailing slash or a different port is a rejected sign-in.
+# --------------------------------------------------------------------------
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+# `or` rather than a default=, because docker-compose passes the variable
+# through as an empty string when it is unset — which django-environ reports as
+# a value, not as absent.
+GOOGLE_OAUTH_REDIRECT_URI = (
+    env("GOOGLE_OAUTH_REDIRECT_URI", default="")
+    or f"{FRONTEND_URL.rstrip('/')}/auth/google/callback"
+)
+# How long a started sign-in stays resumable. Long enough to pick an account and
+# read a consent screen, short enough that an abandoned attempt cannot be picked
+# up later.
+GOOGLE_OAUTH_STATE_TTL_SECONDS = env.int("GOOGLE_OAUTH_STATE_TTL_SECONDS", default=600)
+GOOGLE_OAUTH_TIMEOUT_SECONDS = env.int("GOOGLE_OAUTH_TIMEOUT_SECONDS", default=10)
 
 # --------------------------------------------------------------------------
 # Security

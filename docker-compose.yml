@@ -3,41 +3,48 @@
 # Host ports are deliberately non-default so this stack can sit alongside other
 # projects on the same server:
 #   8110 app (nginx)   5459 postgres   6402 redis   5574 flower
-#   8045 mailpit UI    9010 minio API  9011 minio console
+#   9010 minio API     9011 minio console
 #   1936 RTMP ingest (MediaMTX). HLS output is proxied by nginx at /live-hls/.
 
 name: streamverse
 
 x-backend-env: &backend-env
   DEBUG: ${DEBUG:-0}
-  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?set DJANGO_SECRET_KEY in .env}
-  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
   CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS}
   FRONTEND_URL: ${FRONTEND_URL}
-  LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  TIME_ZONE: ${TIME_ZONE:-UTC}
+  LOG_LEVEL: ${LOG_LEVEL}
+  TIME_ZONE: ${TIME_ZONE}
 
-  JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES:-15}
-  JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS:-7}
+  JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES}
+  JWT_REFRESH_DAYS: ${JWT_REFRESH_DAYS}
+
+  # Google sign-in. Blank turns the feature off rather than breaking startup:
+  # the API reports the provider as disabled and the button is not rendered.
+  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+  GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+  # Blank here means "derive it from FRONTEND_URL" (see config/settings.py).
+  GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
 
   # DRF scoped throttles. Empty values are not valid rate strings, so each one
   # carries a default rather than being passed through bare.
-  THROTTLE_UPLOAD: ${THROTTLE_UPLOAD:-20/hour}
-  THROTTLE_AUTH: ${THROTTLE_AUTH:-30/hour}
-  THROTTLE_COMMENT: ${THROTTLE_COMMENT:-60/hour}
-  THROTTLE_LIVE_START: ${THROTTLE_LIVE_START:-10/hour}
-  THROTTLE_CHECKOUT: ${THROTTLE_CHECKOUT:-20/hour}
+  THROTTLE_UPLOAD: ${THROTTLE_UPLOAD}
+  THROTTLE_AUTH: ${THROTTLE_AUTH}
+  THROTTLE_COMMENT: ${THROTTLE_COMMENT}
+  THROTTLE_LIVE_START: ${THROTTLE_LIVE_START}
+  THROTTLE_CHECKOUT: ${THROTTLE_CHECKOUT}
 
   # Public identity for sitemap.xml, robots.txt and Open Graph tags, which must
   # emit absolute URLs and have no request to derive them from.
-  SITE_URL: ${SITE_URL:-http://localhost:8110}
-  SITE_NAME: ${SITE_NAME:-StreamVerse}
-  SITE_DESCRIPTION: "${SITE_DESCRIPTION:-Partagez, decouvrez et diffusez des videos en direct sur StreamVerse.}"
-  SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
-  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-0}
-  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-0}
-  CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-0}
+  SITE_URL: ${SITE_URL}
+  SITE_NAME: ${SITE_NAME}
+  SITE_DESCRIPTION: "${SITE_DESCRIPTION}"
+  SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS}
+  SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE}
+  CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE}
 
   POSTGRES_DB: ${POSTGRES_DB}
   POSTGRES_USER: ${POSTGRES_USER}
@@ -62,10 +69,21 @@ x-backend-env: &backend-env
   MINIO_PUBLIC_BUCKET: ${MINIO_PUBLIC_BUCKET}
   MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET}
   # Lifetime of a presigned playback session for private content.
-  MINIO_PRESIGN_TTL_SECONDS: ${MINIO_PRESIGN_TTL_SECONDS:-21600}
+  MINIO_PRESIGN_TTL_SECONDS: ${MINIO_PRESIGN_TTL_SECONDS}
 
-  EMAIL_HOST: mailpit
-  EMAIL_PORT: 1025
+  # Outbound mail. Pinning these to a local catcher was how a broken SMTP
+  # configuration stayed invisible until production, so every one of them is a
+  # pass-through now. Defaults live in config/settings.py (Gmail's STARTTLS
+  # endpoint), and .env.example documents what Gmail needs.
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
+  EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+  EMAIL_PORT: ${EMAIL_PORT:-587}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+  EMAIL_USE_SSL: ${EMAIL_USE_SSL:-0}
+  EMAIL_TIMEOUT: ${EMAIL_TIMEOUT:-15}
+  EMAIL_ASYNC: ${EMAIL_ASYNC:-1}
   DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL}
 
   UPLOAD_SCRATCH_DIR: /data/uploads
@@ -73,34 +91,34 @@ x-backend-env: &backend-env
   FFMPEG_PRESET: ${FFMPEG_PRESET}
   FFMPEG_VIDEO_ENCODER: ${FFMPEG_VIDEO_ENCODER}
   HLS_SEGMENT_SECONDS: ${HLS_SEGMENT_SECONDS}
-  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5368709120}
-  MAX_VIDEO_DURATION_SECONDS: ${MAX_VIDEO_DURATION_SECONDS:-14400}
-  UPLOAD_SESSION_TTL_HOURS: ${UPLOAD_SESSION_TTL_HOURS:-24}
+  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
+  MAX_VIDEO_DURATION_SECONDS: ${MAX_VIDEO_DURATION_SECONDS}
+  UPLOAD_SESSION_TTL_HOURS: ${UPLOAD_SESSION_TTL_HOURS}
 
-  MAX_AVATAR_BYTES: ${MAX_AVATAR_BYTES:-5242880}
-  MAX_BANNER_BYTES: ${MAX_BANNER_BYTES:-10485760}
-  MAX_AVATAR_DIMENSION: ${MAX_AVATAR_DIMENSION:-2048}
-  MAX_BANNER_DIMENSION: ${MAX_BANNER_DIMENSION:-6000}
+  MAX_AVATAR_BYTES: ${MAX_AVATAR_BYTES}
+  MAX_BANNER_BYTES: ${MAX_BANNER_BYTES}
+  MAX_AVATAR_DIMENSION: ${MAX_AVATAR_DIMENSION}
+  MAX_BANNER_DIMENSION: ${MAX_BANNER_DIMENSION}
 
   LIVE_RTMP_APP: ${LIVE_RTMP_APP}
-  LIVE_RTMP_PUBLIC_URL: ${LIVE_RTMP_PUBLIC_URL:-rtmp://localhost:1936}
-  LIVE_HLS_PUBLIC_PATH: ${LIVE_HLS_PUBLIC_PATH:-/live-hls}
+  LIVE_RTMP_PUBLIC_URL: ${LIVE_RTMP_PUBLIC_URL}
+  LIVE_HLS_PUBLIC_PATH: ${LIVE_HLS_PUBLIC_PATH}
   LIVE_MEDIAMTX_API: http://mediamtx:9997
   LIVE_HOOK_SECRET: ${LIVE_HOOK_SECRET}
-  LIVE_RECORDINGS_DIR: ${LIVE_RECORDINGS_DIR:-/data/recordings}
-  LIVE_RECORDING_SETTLE_SECONDS: ${LIVE_RECORDING_SETTLE_SECONDS:-20}
-  LIVE_RECORDING_RETENTION_DAYS: ${LIVE_RECORDING_RETENTION_DAYS:-7}
-  LIVE_CHAT_MIN_INTERVAL_SECONDS: ${LIVE_CHAT_MIN_INTERVAL_SECONDS:-1.0}
-  LIVE_WEBRTC_APP: ${LIVE_WEBRTC_APP:-webrtc}
-  LIVE_WEBRTC_PUBLIC_PATH: ${LIVE_WEBRTC_PUBLIC_PATH:-/live-webrtc}
-  LIVE_WHIP_TICKET_TTL_SECONDS: ${LIVE_WHIP_TICKET_TTL_SECONDS:-300}
+  LIVE_RECORDINGS_DIR: ${LIVE_RECORDINGS_DIR}
+  LIVE_RECORDING_SETTLE_SECONDS: ${LIVE_RECORDING_SETTLE_SECONDS}
+  LIVE_RECORDING_RETENTION_DAYS: ${LIVE_RECORDING_RETENTION_DAYS}
+  LIVE_CHAT_MIN_INTERVAL_SECONDS: ${LIVE_CHAT_MIN_INTERVAL_SECONDS}
+  LIVE_WEBRTC_APP: ${LIVE_WEBRTC_APP}
+  LIVE_WEBRTC_PUBLIC_PATH: ${LIVE_WEBRTC_PUBLIC_PATH}
+  LIVE_WHIP_TICKET_TTL_SECONDS: ${LIVE_WHIP_TICKET_TTL_SECONDS}
 
   PAYMENTS_USE_MOCK: ${PAYMENTS_USE_MOCK}
   MOCK_PAYMENT_WEBHOOK_SECRET: ${MOCK_PAYMENT_WEBHOOK_SECRET}
   MOCK_PAYMENT_CONFIRM_DELAY_SECONDS: ${MOCK_PAYMENT_CONFIRM_DELAY_SECONDS}
   MOCK_PAYMENT_FAILURE_PERCENT: ${MOCK_PAYMENT_FAILURE_PERCENT}
   PAYMENT_PENDING_TIMEOUT_MINUTES: ${PAYMENT_PENDING_TIMEOUT_MINUTES}
-  RENEWAL_LEAD_HOURS: ${RENEWAL_LEAD_HOURS:-24}
+  RENEWAL_LEAD_HOURS: ${RENEWAL_LEAD_HOURS}
   ADS_ENABLED: ${ADS_ENABLED}
   ADS_MIN_DURATION_FOR_MIDROLL: ${ADS_MIN_DURATION_FOR_MIDROLL}
   INTERNAL_API_BASE_URL: http://backend:8000
@@ -131,7 +149,7 @@ services:
       # and `pg_upgrade --link` stays possible across a mount boundary.
       - postgres_data:/var/lib/postgresql
     ports:
-      - "${POSTGRES_HOST_PORT:-5459}:5432"
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -145,7 +163,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "${REDIS_HOST_PORT:-6402}:6379"
+      - "6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -178,16 +196,6 @@ services:
       timeout: 5s
       retries: 20
 
-  mailpit:
-    image: axllent/mailpit:v1.30
-    restart: unless-stopped
-    environment:
-      MP_MAX_MESSAGES: 500
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
-    ports:
-      - "${MAILPIT_HOST_PORT}:8025"
-
   backend:
     build:
       context: ./backend
@@ -195,13 +203,13 @@ services:
     # separate implicit names lets `docker compose build backend` leave the
     # worker running stale code — a failure mode that is invisible until a task
     # silently behaves like an older revision.
-    image: streamverse-backend:local
+    image: streamverse-backend
     restart: unless-stopped
     command: ["asgi"]
     environment:
       <<: *backend-env
-      SEED_ON_START: ${SEED_ON_START:-1}
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+      SEED_ON_START: ${SEED_ON_START}
+      UVICORN_WORKERS: ${UVICORN_WORKERS}
     volumes: *backend-volumes
     depends_on:
       db: { condition: service_healthy }
@@ -218,7 +226,7 @@ services:
   celery-worker:
     build:
       context: ./backend
-    image: streamverse-backend:local
+    image: streamverse-backend
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -235,7 +243,7 @@ services:
   celery-beat:
     build:
       context: ./backend
-    image: streamverse-backend:local
+    image: streamverse-backend
     restart: unless-stopped
     command: ["beat"]
     environment: *backend-env
@@ -248,13 +256,13 @@ services:
   flower:
     build:
       context: ./backend
-    image: streamverse-backend:local
+    image: streamverse-backend
     restart: unless-stopped
     command: ["flower"]
     environment:
       <<: *backend-env
-      FLOWER_USER: ${FLOWER_USER:-admin}
-      FLOWER_PASSWORD: ${FLOWER_PASSWORD:-admin}
+      FLOWER_USER: ${FLOWER_USER}
+      FLOWER_PASSWORD: ${FLOWER_PASSWORD}
     ports:
       - "${FLOWER_HOST_PORT:-5574}:5555"
     depends_on:
@@ -274,7 +282,7 @@ services:
       # The host a *browser* can reach this server on. Container interface IPs
       # are gathered automatically and are useless off-host, so ICE would stall
       # without this on any deployment that is not localhost.
-      MTX_WEBRTCADDITIONALHOSTS: ${LIVE_WEBRTC_HOST:-localhost}
+      MTX_WEBRTCADDITIONALHOSTS: ${LIVE_WEBRTC_HOST}
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
       - ./mediamtx/bridge.sh:/bridge.sh:ro
@@ -285,7 +293,7 @@ services:
       # same-origin. WebRTC media cannot be proxied: it is UDP straight from the
       # browser to this listener.
       - "${RTMP_HOST_PORT}:1935"
-      - "${WEBRTC_UDP_HOST_PORT:-8189}:8189/udp"
+      - "${WEBRTC_UDP_HOST_PORT}:8189/udp"
     depends_on:
       - backend
 
@@ -311,12 +319,24 @@ services:
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - static:/var/www/static:ro
-    ports:
-      - "${APP_HOST_PORT}:80"
+    # ports:
+    #   - "${APP_HOST_PORT}:80"
+    expose:
+      - "80"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.streamverse.rule=Host(`streamverse.techarea.pro`) || Host(`www.streamverse.techarea.pro`)
+      - traefik.http.routers.streamverse.entrypoints=websecure
+      - traefik.http.routers.streamverse.tls.certresolver=letsencrypt
+      - traefik.http.services.streamverse.loadbalancer.server.port=80
+      - traefik.docker.network=proxy
     depends_on:
       - backend
       - frontend
       - mediamtx
+    networks:
+      - default
+      - proxy
 
 volumes:
   postgres_data:
@@ -326,3 +346,6 @@ volumes:
   upload_scratch: # tus chunks + source files, shared between backend and worker
   transcode_work: # ffmpeg scratch space, swept by a beat task
   live_recordings: # MediaMTX session recordings, pruned once converted to VOD
+networks:
+  proxy:
+    external: true

@@ -78,7 +78,6 @@
 | `db` | `postgres:18-trixie` | Primary relational store |
 | `redis` | `redis:8.10-trixie` | Cache / channel layer / Celery broker |
 | `minio` | `minio/minio:2025-04-22` | S3-compatible object store (HLS, thumbnails, ad creatives) |
-| `mailpit` | `axllent/mailpit:v1.30` | Dev SMTP server + web UI |
 | `mediamtx` | `bluenviron/mediamtx:1.20.0-ffmpeg` | RTMP ingest + HLS repackaging + lifecycle hooks |
 
 > **Single image, four roles.** `backend`, `celery-worker`, `celery-beat` and `flower` all use `streamverse-backend:local`. The entrypoint dispatches on the `command` argument (`asgi | worker | beat | flower`). This avoids the classic failure mode where `docker compose build backend` leaves the worker running stale code.
@@ -352,7 +351,6 @@ Video.search_vector (SearchVectorField, GIN index)
 | **5459** | 5432 | PostgreSQL |
 | **6402** | 6379 | Redis |
 | **5574** | 5555 | Flower (Celery monitor) |
-| **8045** | 8025 | Mailpit UI |
 | **9010** | 9000 | MinIO S3 API |
 | **9011** | 9001 | MinIO web console |
 | **1936** | 1935 | MediaMTX RTMP ingest |

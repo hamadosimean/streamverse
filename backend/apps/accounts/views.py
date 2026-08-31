@@ -4,21 +4,29 @@ import uuid
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import update_last_login
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.accounts import oauth
 from apps.accounts.serializers import (
+    AuthProvidersSerializer,
     ChannelDetailSerializer,
+    GoogleAuthorizeSerializer,
+    GoogleCallbackSerializer,
+    GoogleTokenPairSerializer,
     PasswordChangeSerializer,
     ProfileImageUploadSerializer,
     ProfileUpdateSerializer,
     UserSerializer,
 )
+from apps.accounts.services import resolve_google_user
 
 logger = logging.getLogger(__name__)
 
@@ -250,3 +258,110 @@ class ChannelVideosView(generics.ListAPIView):
             .with_related()
             .order_by(*ordering)
         )
+
+
+# ---------------------------------------------------------------------------
+# Google sign-in
+#
+# The protocol lives in apps.accounts.oauth and the user resolution in
+# apps.accounts.services; what is left here is the HTTP shape and the mapping
+# from a GoogleAuthError to a status code.
+# ---------------------------------------------------------------------------
+def _oauth_error_response(exc: oauth.GoogleAuthError) -> Response:
+    status_code = {
+        "not_configured": status.HTTP_503_SERVICE_UNAVAILABLE,
+        "provider_unreachable": status.HTTP_502_BAD_GATEWAY,
+        "account_suspended": status.HTTP_403_FORBIDDEN,
+    }.get(exc.code, status.HTTP_400_BAD_REQUEST)
+    # Hand-built rather than raised, so it matches the envelope every other
+    # error goes through (apps.core.exceptions.api_exception_handler).
+    return Response({"detail": exc.message, "code": exc.code, "errors": None},
+                    status=status_code)
+
+
+@extend_schema(tags=["auth"])
+class AuthProvidersView(APIView):
+    """Which sign-in methods this deployment actually offers.
+
+    The Google button is only worth rendering if the deployment has credentials
+    for it. Asking the server beats a second copy of the same fact in the
+    frontend's build-time env, which would silently drift.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = AuthProvidersSerializer
+
+    @extend_schema(responses={200: AuthProvidersSerializer})
+    def get(self, request):
+        return Response({"google": {"enabled": oauth.is_configured()}})
+
+
+@extend_schema(tags=["auth"])
+class GoogleAuthorizeView(APIView):
+    """Start the flow: hand the SPA the URL to send the browser to.
+
+    A JSON payload rather than a 302, because the caller is `fetch`/axios — a
+    redirect here would be followed by the XHR layer and Google would answer a
+    cross-origin request the browser then refuses to read.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "auth"
+    serializer_class = GoogleAuthorizeSerializer
+
+    @extend_schema(
+        parameters=[OpenApiParameter(
+            "next", str, description="Chemin relatif ou revenir apres connexion.",
+        )],
+        responses={200: GoogleAuthorizeSerializer,
+                   503: OpenApiResponse(description="Google n'est pas configure.")},
+    )
+    def get(self, request):
+        try:
+            url = oauth.build_authorization_url(
+                next_path=request.query_params.get("next", "/")
+            )
+        except oauth.GoogleAuthError as exc:
+            return _oauth_error_response(exc)
+        return Response({"authorization_url": url})
+
+
+@extend_schema(tags=["auth"])
+class GoogleCallbackView(APIView):
+    """Finish the flow: code + state in, our own JWT pair out.
+
+    POST rather than GET even though the browser arrives back via a redirect:
+    the SPA owns the callback route, reads the query string itself, and posts it
+    here. That keeps the authorization code out of the Referer header and out of
+    any server access log that records query strings.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "auth"
+    serializer_class = GoogleCallbackSerializer
+
+    @extend_schema(request=GoogleCallbackSerializer,
+                   responses={200: GoogleTokenPairSerializer})
+    def post(self, request):
+        serializer = GoogleCallbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            identity, next_path = oauth.complete(**serializer.validated_data)
+            user, created = resolve_google_user(identity)
+        except oauth.GoogleAuthError as exc:
+            return _oauth_error_response(exc)
+
+        refresh = RefreshToken.for_user(user)
+        update_last_login(None, user)
+        logger.info("Google sign-in for user %s (created=%s)", user.pk, created)
+
+        return Response({
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "created": created,
+            "next": next_path,
+        })
