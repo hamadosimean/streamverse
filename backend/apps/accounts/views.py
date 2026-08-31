@@ -270,6 +270,9 @@ class ChannelVideosView(generics.ListAPIView):
 def _oauth_error_response(exc: oauth.GoogleAuthError) -> Response:
     status_code = {
         "not_configured": status.HTTP_503_SERVICE_UNAVAILABLE,
+        # Wrong credentials are as unusable as absent ones, and neither is
+        # something the caller can fix by retrying.
+        "client_misconfigured": status.HTTP_503_SERVICE_UNAVAILABLE,
         "provider_unreachable": status.HTTP_502_BAD_GATEWAY,
         "account_suspended": status.HTTP_403_FORBIDDEN,
     }.get(exc.code, status.HTTP_400_BAD_REQUEST)

@@ -177,9 +177,29 @@ def _exchange_code(code: str, verifier: str) -> str:
 
     if response.status_code != 200:
         # Google's body names the reason (bad code, reused code, redirect_uri
-        # mismatch). It is operator information, not user information.
+        # mismatch, bad client credentials). It is operator information, not
+        # user information, so it goes to the log rather than to the response.
         logger.warning("Google token exchange rejected (%s): %s",
                        response.status_code, response.text[:500])
+        try:
+            reason = response.json().get("error") or ""
+        except ValueError:
+            reason = ""
+
+        # `invalid_client` is a deployment fault, not a transient one: the
+        # client id and secret do not match. Reporting it as "try again" would
+        # invite a user to retry something that cannot succeed until someone
+        # edits the environment, so it is separated out and answered like the
+        # unconfigured case. The single most common cause is a second copy of
+        # the client id pasted into GOOGLE_OAUTH_CLIENT_SECRET, which must
+        # start with `GOCSPX-`.
+        if reason == "invalid_client":
+            raise GoogleAuthError(
+                "client_misconfigured",
+                "La connexion Google est mal configuree cote serveur. "
+                "Utilisez un autre moyen de connexion en attendant.",
+            )
+
         raise GoogleAuthError("exchange_failed",
                               "Google a refuse cette connexion. Reessayez.")
 

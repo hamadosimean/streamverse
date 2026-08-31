@@ -117,6 +117,7 @@ Errors carry the standard envelope with a stable `code`:
 |---|---|---|
 | `not_configured` | 503 | No `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` on this deployment |
 | `invalid_state` | 400 | Unknown, expired or already-used state — the attempt must be restarted. States are single use |
+| `client_misconfigured` | 503 | Google returned `invalid_client` — the id and secret on this deployment do not match. Almost always a copy of the client id pasted into `GOOGLE_OAUTH_CLIENT_SECRET`, which must start with `GOCSPX-` |
 | `exchange_failed` | 400 | Google refused the code (reused, expired, or a `redirect_uri` mismatch) |
 | `invalid_token` | 400 | The returned ID token failed signature, issuer, audience or expiry checks |
 | `email_unverified` | 400 | The Google account's address is not verified |
